@@ -10,6 +10,7 @@ interface FolderPickerProps {
   onSelectFolderFiles: (files: File[], folderName: string) => void;
   onReset: () => void;
   isLoading: boolean;
+  isDirectWriteSupported: boolean;
 }
 
 export const FolderPicker: React.FC<FolderPickerProps> = ({
@@ -20,6 +21,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
   onSelectFolderFiles,
   onReset,
   isLoading,
+  isDirectWriteSupported,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +85,13 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
               className="flex-1 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white text-lg font-bold py-4 px-6 rounded-xl shadow-md transition"
             >
               <FolderOpen className="w-7 h-7" />
-              <span>{isLoading ? 'กำลังโหลด...' : 'เลือกโฟลเดอร์ในแฟลชไดร์ฟ'}</span>
+              <span>
+                {isLoading
+                  ? 'กำลังโหลด...'
+                  : isDirectWriteSupported
+                  ? 'เลือกโฟลเดอร์ในแฟลชไดร์ฟ'
+                  : 'เลือกโฟลเดอร์เพลง'}
+              </span>
             </button>
 
             <button

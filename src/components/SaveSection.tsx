@@ -1,19 +1,23 @@
 import React from 'react';
-import { Save, CheckCircle2, AlertCircle, HardDrive } from 'lucide-react';
+import { Save, Download, CheckCircle2, AlertCircle, HardDrive, FileArchive } from 'lucide-react';
 import { ExportProgress } from '../types/audio';
 
 interface SaveSectionProps {
   hasTracks: boolean;
   exportProgress: ExportProgress;
   onSaveToDirectory: () => void;
+  onSaveAsZip: () => void;
   folderName: string | null;
+  isDirectWriteSupported: boolean;
 }
 
 export const SaveSection: React.FC<SaveSectionProps> = ({
   hasTracks,
   exportProgress,
   onSaveToDirectory,
+  onSaveAsZip,
   folderName,
+  isDirectWriteSupported,
 }) => {
   const isWriting = exportProgress.status === 'writing';
   const isCompleted = exportProgress.status === 'completed';
@@ -31,29 +35,61 @@ export const SaveSection: React.FC<SaveSectionProps> = ({
           3
         </span>
         <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
-          ขั้นตอนที่ 3: บันทึกลงแฟลชไดร์ฟ
+          {isDirectWriteSupported ? 'ขั้นตอนที่ 3: บันทึกลงแฟลชไดร์ฟ' : 'ขั้นตอนที่ 3: ดาวน์โหลดไฟล์เพลง (โหมดสำรอง)'}
         </h2>
       </div>
 
-      <p className="text-slate-600 text-base mb-4">
-        บันทึกไฟล์เรียงลำดับ <strong>001, 002, 003...</strong> แทนที่ในแฟลชไดร์ฟ {folderName ? `("${folderName}")` : ''} ทันที 
-        <span className="text-emerald-700 font-semibold"> (บันทึกลงที่เดิม ไม่สร้างโฟลเดอร์ซ้อน)</span>
-      </p>
+      {isDirectWriteSupported ? (
+        <p className="text-slate-600 text-base mb-4">
+          บันทึกไฟล์เรียงลำดับ <strong>001, 002, 003...</strong> แทนที่ในแฟลชไดร์ฟ {folderName ? `("${folderName}")` : ''} ทันที 
+          <span className="text-emerald-700 font-semibold"> (บันทึกลงที่เดิม ไม่สร้างโฟลเดอร์ซ้อน)</span>
+        </p>
+      ) : (
+        <p className="text-slate-600 text-base mb-4">
+          เบราว์เซอร์นี้ไม่รองรับการเขียนไฟล์ลงไดรฟ์โดยตรง ระบบจะรวมเพลงที่จัดเรียงลำดับ <strong>001, 002, 003...</strong> เป็นไฟล์ ZIP ให้ดาวน์โหลด
+        </p>
+      )}
 
-      {/* Main Save Button */}
+      {/* Action Buttons */}
       <div className="flex flex-col gap-3">
-        <button
-          onClick={onSaveToDirectory}
-          disabled={!hasTracks || isWriting}
-          className="w-full flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl sm:text-2xl font-bold py-5 px-8 rounded-2xl shadow-lg hover:shadow-xl transition-all"
-        >
-          <Save className="w-8 h-8" />
-          <span>
-            {isWriting
-              ? 'กำลังบันทึก...'
-              : 'บันทึกลงแฟลชไดร์ฟ'}
-          </span>
-        </button>
+        {isDirectWriteSupported ? (
+          <>
+            <button
+              onClick={onSaveToDirectory}
+              disabled={!hasTracks || isWriting}
+              className="w-full flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl sm:text-2xl font-bold py-5 px-8 rounded-2xl shadow-lg hover:shadow-xl transition-all"
+            >
+              <Save className="w-8 h-8" />
+              <span>
+                {isWriting
+                  ? 'กำลังบันทึก...'
+                  : 'บันทึกลงแฟลชไดร์ฟ'}
+              </span>
+            </button>
+
+            <button
+              onClick={onSaveAsZip}
+              disabled={!hasTracks || isWriting}
+              className="self-center flex items-center gap-2 text-slate-500 hover:text-emerald-700 text-sm font-semibold transition py-1"
+            >
+              <FileArchive className="w-4 h-4" />
+              <span>หรือดาวน์โหลดเป็นไฟล์ ZIP</span>
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={onSaveAsZip}
+            disabled={!hasTracks || isWriting}
+            className="w-full flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl sm:text-2xl font-bold py-5 px-8 rounded-2xl shadow-lg hover:shadow-xl transition-all"
+          >
+            <Download className="w-8 h-8" />
+            <span>
+              {isWriting
+                ? 'กำลังสร้างไฟล์ ZIP...'
+                : 'ดาวน์โหลดไฟล์ ZIP'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Progress Bar when writing */}
@@ -93,7 +129,9 @@ export const SaveSection: React.FC<SaveSectionProps> = ({
               บันทึกเสร็จสิ้น
             </h4>
             <p className="text-emerald-800 text-base">
-              บันทึกเพลงเรียงตามลำดับลงแฟลชไดร์ฟเรียบร้อย สามารถนำไปเปิดใช้งานกับลำโพงได้ทันที
+              {isDirectWriteSupported
+                ? 'บันทึกเพลงเรียงตามลำดับลงแฟลชไดร์ฟเรียบร้อย สามารถนำไปเปิดใช้งานกับลำโพงได้ทันที'
+                : 'ดาวน์โหลดไฟล์ ZIP เรียบร้อยแล้ว กรุณาแตกไฟล์ (Extract) ลงในแฟลชไดร์ฟเพื่อใช้งานกับลำโพง'}
             </p>
           </div>
         </div>
