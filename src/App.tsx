@@ -7,6 +7,7 @@ import { AudioTrimmerModal } from './components/AudioTrimmerModal';
 import { SaveSection } from './components/SaveSection';
 import { HelpModal } from './components/HelpModal';
 import { BrowserWarningBanner } from './components/BrowserWarningBanner';
+import { Footer } from './components/Footer';
 import { Track, ExportProgress } from './types/audio';
 import {
   readAudioFilesFromDirectory,
@@ -347,6 +348,9 @@ export const App: React.FC = () => {
           isDirectWriteSupported={isDirectWriteSupported}
         />
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Bottom Floating Music Player Bar */}
       <AudioPlayerBar
