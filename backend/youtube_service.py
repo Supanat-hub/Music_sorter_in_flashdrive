@@ -58,15 +58,20 @@ def clean_song_title(title: str) -> str:
 
 def get_base_ydl_opts() -> dict:
     """
-    Base configuration for yt-dlp to maximize bypass capabilities
+    Base configuration for yt-dlp to maximize bypass capabilities on cloud/datacenter IPs
     """
     opts = {
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
         'nocheckcertificate': True,
-        'ignoreerrors': True,
+        'ignoreerrors': False,
         'logtostderr': False,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'tv'],
+            }
+        },
         # Emulate standard web client
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -85,6 +90,7 @@ def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     opts = get_base_ydl_opts()
     opts['extract_flat'] = 'in_playlist'
+    opts['ignoreerrors'] = True
     
     results = []
     search_query = f"ytsearch{limit}:{query}"
@@ -191,6 +197,7 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
     opts.update({
         'format': 'bestaudio/best',
         'outtmpl': out_template,
+        'noplaylist': True,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -199,9 +206,14 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
     })
     
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+        try:
+            info = ydl.extract_info(url, download=True)
+        except Exception as err:
+            print(f"yt-dlp extract_info error: {err}")
+            raise err
+
         if not info:
-            raise ValueError("Failed to extract audio from video")
+            raise ValueError("Failed to extract audio: Video is unavailable or restricted")
             
         video_id = info.get('id')
         title = clean_song_title(info.get('title', 'song'))
