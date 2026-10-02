@@ -88,12 +88,64 @@ def health_check():
     return {
         "status": "ok",
         "service": "music-sorter-youtube-api",
-        "version": "1.0.4",
+        "version": "1.0.5",
         "has_cookies": bool(raw_cookie.strip()),
         "cookie_length": len(raw_cookie.strip()),
         "cookie_file_ready": bool(cookie_file),
         "node_version": node_version,
     }
+
+@app.get("/api/debug_formats")
+def debug_formats(url: str = Query(...)):
+    validated_url = validate_youtube_url(url)
+    out = {}
+    
+    # 1. Try with cookies
+    try:
+        opts1 = get_base_ydl_opts(use_cookies=True)
+        with yt_dlp.YoutubeDL(opts1) as ydl:
+            meta1 = ydl.extract_info(validated_url, download=False)
+            out["with_cookies"] = {
+                "success": True,
+                "title": meta1.get("title"),
+                "formats": [f"{f.get('format_id')}: ext={f.get('ext')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, url={'yes' if f.get('url') else 'no'}" for f in meta1.get("formats", [])]
+            }
+    except Exception as e1:
+        out["with_cookies"] = {"success": False, "error": str(e1)}
+        
+    # 2. Try android client
+    try:
+        opts2 = {
+            'quiet': True,
+            'extractor_args': {'youtube': {'player_client': ['android']}}
+        }
+        with yt_dlp.YoutubeDL(opts2) as ydl:
+            meta2 = ydl.extract_info(validated_url, download=False)
+            out["android_nocookies"] = {
+                "success": True,
+                "title": meta2.get("title"),
+                "formats": [f"{f.get('format_id')}: ext={f.get('ext')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, url={'yes' if f.get('url') else 'no'}" for f in meta2.get("formats", [])]
+            }
+    except Exception as e2:
+        out["android_nocookies"] = {"success": False, "error": str(e2)}
+
+    # 3. Try ios client
+    try:
+        opts3 = {
+            'quiet': True,
+            'extractor_args': {'youtube': {'player_client': ['ios']}}
+        }
+        with yt_dlp.YoutubeDL(opts3) as ydl:
+            meta3 = ydl.extract_info(validated_url, download=False)
+            out["ios_nocookies"] = {
+                "success": True,
+                "title": meta3.get("title"),
+                "formats": [f"{f.get('format_id')}: ext={f.get('ext')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, url={'yes' if f.get('url') else 'no'}" for f in meta3.get("formats", [])]
+            }
+    except Exception as e3:
+        out["ios_nocookies"] = {"success": False, "error": str(e3)}
+
+    return out
 
 @app.get("/api/search")
 def search(q: str = Query(..., description="Search query string"), limit: int = Query(10, ge=1, le=20)):
@@ -116,7 +168,7 @@ def get_info(url: str = Query(..., description="YouTube video or playlist URL"))
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         print(f"Info inspection error: {e}", flush=True)
-        raise HTTPException(status_code=400, detail="ไม่สามารถดึงข้อมูลเพลงได้ กรุณาตรวจสอบว่าลิงก์ถูกต้องและเป็นสาธารณะ")
+        raise HTTPException(status_code=400, detail=f"ไม่สามารถดึงข้อมูลเพลงได้: {str(e)[:120]}")
 
 @app.post("/api/download")
 def download_audio_post(req: DownloadRequest, background_tasks: BackgroundTasks):
