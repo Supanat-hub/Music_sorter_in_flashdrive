@@ -6,24 +6,32 @@ from typing import List, Dict, Any, Optional
 
 COOKIE_ENV_VAR = "YOUTUBE_COOKIES"
 
+_cached_cookie_path: Optional[str] = None
+
 def get_cookie_file_path() -> Optional[str]:
     """
     Check if YOUTUBE_COOKIES environment variable is provided.
-    If provided, write to a temp file and return the path.
+    If provided, write to a temp file and return the path (cached).
     """
+    global _cached_cookie_path
+    if _cached_cookie_path and os.path.exists(_cached_cookie_path):
+        return _cached_cookie_path
+
     cookies_content = os.getenv(COOKIE_ENV_VAR)
     if not cookies_content:
         return None
     
     # Check if it's already a valid file path
     if os.path.isfile(cookies_content):
-        return cookies_content
+        _cached_cookie_path = cookies_content
+        return _cached_cookie_path
     
     # Otherwise treat as cookie file text content
     temp_cookie = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt")
     temp_cookie.write(cookies_content)
     temp_cookie.close()
-    return temp_cookie.name
+    _cached_cookie_path = temp_cookie.name
+    return _cached_cookie_path
 
 def clean_song_title(title: str) -> str:
     """
@@ -69,15 +77,9 @@ def get_base_ydl_opts() -> dict:
         'logtostderr': False,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web', 'tv'],
+                'player_client': ['android', 'ios', 'tv'],
             }
         },
-        # Emulate standard web client
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
-        }
     }
     cookie_path = get_cookie_file_path()
     if cookie_path:
