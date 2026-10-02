@@ -25,3 +25,27 @@ export interface AudioTrimSettings {
   fadeIn: boolean;
   fadeOut: boolean;
 }
+
+export interface YouTubeSearchResult {
+  id: string;
+  title: string;
+  original_title?: string;
+  url: string;
+  duration: number;
+  duration_str: string;
+  channel?: string;
+  thumbnail?: string;
+}
+
+export interface YouTubeUrlInfo {
+  type: 'video' | 'playlist';
+  id?: string;
+  title: string;
+  url?: string;
+  duration?: number;
+  duration_str?: string;
+  channel?: string;
+  thumbnail?: string;
+  total_items?: number;
+  items?: YouTubeSearchResult[];
+}

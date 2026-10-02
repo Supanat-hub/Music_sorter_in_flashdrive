@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { FolderOpen, Plus, RefreshCw, HardDrive } from 'lucide-react';
+import { YouTubeIcon } from './YouTubeIcon';
 import { isFileSystemAccessSupported, isAudioFile } from '../utils/fileSystem';
 
 interface FolderPickerProps {
@@ -8,6 +9,7 @@ interface FolderPickerProps {
   onSelectDirectory: () => void;
   onAddLocalFiles: (files: FileList) => void;
   onSelectFolderFiles: (files: File[], folderName: string) => void;
+  onOpenYouTubeDownloader: () => void;
   onReset: () => void;
   isLoading: boolean;
   isDirectWriteSupported: boolean;
@@ -19,6 +21,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
   onSelectDirectory,
   onAddLocalFiles,
   onSelectFolderFiles,
+  onOpenYouTubeDownloader,
   onReset,
   isLoading,
   isDirectWriteSupported,
@@ -78,13 +81,13 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
 
       <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
         {!folderName && trackCount === 0 ? (
-          <div className="w-full flex flex-col sm:flex-row gap-3">
+          <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={handleFolderButtonClick}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white text-lg font-bold py-4 px-6 rounded-xl shadow-md transition"
+              className="flex items-center justify-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white text-base sm:text-lg font-bold py-4 px-4 rounded-xl shadow-md transition"
             >
-              <FolderOpen className="w-7 h-7" />
+              <FolderOpen className="w-6 h-6 flex-shrink-0" />
               <span>
                 {isLoading
                   ? 'กำลังโหลด...'
@@ -97,10 +100,19 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-300 text-lg font-bold py-4 px-6 rounded-xl transition"
+              className="flex items-center justify-center gap-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-300 text-base sm:text-lg font-bold py-4 px-4 rounded-xl transition"
             >
-              <Plus className="w-7 h-7 text-emerald-700" />
-              <span>เลือกไฟล์เพลง</span>
+              <Plus className="w-6 h-6 text-emerald-700 flex-shrink-0" />
+              <span>เลือกไฟล์จากเครื่อง</span>
+            </button>
+
+            <button
+              onClick={onOpenYouTubeDownloader}
+              disabled={isLoading}
+              className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 active:from-red-800 active:to-rose-800 disabled:opacity-50 text-white text-base sm:text-lg font-bold py-4 px-4 rounded-xl shadow-md transition"
+            >
+              <YouTubeIcon className="w-6 h-6 flex-shrink-0" />
+              <span>ดาวน์โหลดจาก YouTube</span>
             </button>
           </div>
         ) : (
@@ -123,17 +135,25 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 font-semibold px-4 py-2.5 rounded-lg text-base shadow-sm transition"
+                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 font-semibold px-3 py-2 rounded-lg text-sm shadow-sm transition"
               >
-                <Plus className="w-5 h-5 text-emerald-600" />
-                <span>เพิ่มเพลง</span>
+                <Plus className="w-4 h-4 text-emerald-600" />
+                <span>เพิ่มไฟล์</span>
+              </button>
+
+              <button
+                onClick={onOpenYouTubeDownloader}
+                className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-3 py-2 rounded-lg text-sm shadow-sm transition"
+              >
+                <YouTubeIcon className="w-4 h-4 text-red-600" />
+                <span>โหลดจาก YouTube</span>
               </button>
 
               <button
                 onClick={handleFolderButtonClick}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-lg text-base shadow-sm transition"
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-sm shadow-sm transition"
               >
-                <RefreshCw className="w-5 h-5" />
+                <RefreshCw className="w-4 h-4" />
                 <span>เปลี่ยนโฟลเดอร์</span>
               </button>
 
@@ -146,6 +166,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
             </div>
           </div>
         )}
+
 
         <input
           type="file"

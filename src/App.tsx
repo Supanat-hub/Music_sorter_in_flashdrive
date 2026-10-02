@@ -7,6 +7,7 @@ import { AudioTrimmerModal } from './components/AudioTrimmerModal';
 import { SaveSection } from './components/SaveSection';
 import { HelpModal } from './components/HelpModal';
 import { BrowserWarningBanner } from './components/BrowserWarningBanner';
+import { YouTubeDownloaderModal } from './components/YouTubeDownloaderModal';
 import { Footer } from './components/Footer';
 import { Track, ExportProgress } from './types/audio';
 import {
@@ -23,6 +24,9 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDirectWriteSupported, setIsDirectWriteSupported] = useState<boolean>(() => isFileSystemAccessSupported());
   const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(false);
+
+  // YouTube Downloader Modal State
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState<boolean>(false);
 
   // Audio Playback Preview State
   const [playingTrack, setPlayingTrack] = useState<Track | null>(null);
@@ -200,6 +204,17 @@ export const App: React.FC = () => {
     setExportProgress({ current: 0, total: 0, currentFileName: '', status: 'idle' });
   };
 
+  // Add downloaded track from YouTube
+  const handleTrackDownloaded = (file: File) => {
+    const newTrack: Track = {
+      id: `track-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: file.name,
+      originalFile: file,
+      isTrimmed: false,
+    };
+    setTracks((prev) => [...prev, newTrack]);
+  };
+
   // Reset playlist
   const handleReset = () => {
     handleStopAndClosePlayer();
@@ -323,6 +338,7 @@ export const App: React.FC = () => {
           onSelectDirectory={handleSelectDirectory}
           onAddLocalFiles={handleAddLocalFiles}
           onSelectFolderFiles={handleSelectFolderFiles}
+          onOpenYouTubeDownloader={() => setIsYouTubeModalOpen(true)}
           onReset={handleReset}
           isLoading={isLoading}
           isDirectWriteSupported={isDirectWriteSupported}
@@ -361,6 +377,13 @@ export const App: React.FC = () => {
         onTogglePlay={() => playingTrack && handleTogglePlay(playingTrack)}
         onSeek={handleSeek}
         onClose={handleStopAndClosePlayer}
+      />
+
+      {/* YouTube Downloader Modal */}
+      <YouTubeDownloaderModal
+        isOpen={isYouTubeModalOpen}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        onTrackDownloaded={handleTrackDownloaded}
       />
 
       {/* Audio Trimmer Modal with Running Playhead */}
