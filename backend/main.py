@@ -7,12 +7,13 @@ from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from youtube_service import search_youtube, get_url_info, download_audio_as_mp3
+import subprocess
+from youtube_service import search_youtube, get_url_info, download_audio_as_mp3, get_cookie_file_path, COOKIE_ENV_VAR
 
 app = FastAPI(
     title="Music Sorter YouTube Audio Backend",
     description="Backend service for searching and downloading MP3 audio from YouTube",
-    version="1.0.0"
+    version="1.0.4"
 )
 
 # Enable CORS for all origins (allows local dev and production domain)
@@ -69,15 +70,29 @@ def cleanup_temp_dir(dir_path: str):
         if os.path.exists(dir_path):
             shutil.rmtree(dir_path)
     except Exception as e:
-        print(f"Error cleaning up temp directory {dir_path}: {e}")
+        print(f"Error cleaning up temp directory {dir_path}: {e}", flush=True)
 
 @app.get("/")
 @app.get("/api/health")
 def health_check():
+    raw_cookie = os.getenv(COOKIE_ENV_VAR, "")
+    node_version = "not_found"
+    try:
+        res = subprocess.run(["node", "-v"], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0:
+            node_version = res.stdout.strip()
+    except Exception:
+        pass
+
+    cookie_file = get_cookie_file_path()
     return {
         "status": "ok",
         "service": "music-sorter-youtube-api",
-        "version": "1.0.0"
+        "version": "1.0.4",
+        "has_cookies": bool(raw_cookie.strip()),
+        "cookie_length": len(raw_cookie.strip()),
+        "cookie_file_ready": bool(cookie_file),
+        "node_version": node_version,
     }
 
 @app.get("/api/search")
@@ -88,6 +103,7 @@ def search(q: str = Query(..., description="Search query string"), limit: int = 
         results = search_youtube(q.strip(), limit=limit)
         return {"query": q, "results": results}
     except Exception as e:
+        print(f"Search error: {e}", flush=True)
         raise HTTPException(status_code=500, detail="ระบบค้นหาขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง")
 
 @app.get("/api/info")
@@ -99,6 +115,7 @@ def get_info(url: str = Query(..., description="YouTube video or playlist URL"))
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
+        print(f"Info inspection error: {e}", flush=True)
         raise HTTPException(status_code=400, detail="ไม่สามารถดึงข้อมูลเพลงได้ กรุณาตรวจสอบว่าลิงก์ถูกต้องและเป็นสาธารณะ")
 
 @app.post("/api/download")
@@ -140,17 +157,23 @@ def process_download(url: str, background_tasks: BackgroundTasks):
         )
     except ValueError as ve:
         cleanup_temp_dir(temp_dir)
+        print(f"Validation error: {ve}", flush=True)
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         # Cleanup immediately if error occurred before response
         cleanup_temp_dir(temp_dir)
         error_msg = str(e)
-        if "Private video" in error_msg or "Sign in" in error_msg:
-            detail = "วิดีโอนี้เป็นแบบส่วนตัวหรือติดจำกัดสิทธิ์ ไม่สามารถดาวน์โหลดได้"
+        print(f"CRITICAL DOWNLOAD ERROR: {error_msg}", flush=True)
+        if "Private video" in error_msg:
+            detail = "วิดีโอนี้เป็นแบบส่วนตัว ไม่สามารถดาวน์โหลดได้"
+        elif "Sign in to confirm you’re not a bot" in error_msg or "Sign in" in error_msg:
+            detail = "YouTube ตรวจพบบ็อต: เซิร์ฟเวอร์ไม่สามารถยืนยันตัวตนได้ กรุณาตรวจสอบการตั้งค่าคุกกี้"
         elif "This video is not available" in error_msg:
             detail = "ไม่พบวิดีโอนี้ในระบบ YouTube"
+        elif "Requested format is not available" in error_msg:
+            detail = "ไม่พบรูปแบบไฟล์เสียงที่พร้อมดาวน์โหลดสำหรับวิดีโอนี้"
         else:
-            detail = "ระบบไม่สามารถดาวน์โหลดเพลงนี้ได้ กรุณาลองเลือกเพลงอื่น"
+            detail = f"ดาวน์โหลดไม่สำเร็จ: {error_msg[:100]}"
         raise HTTPException(status_code=500, detail=detail)
 
 if __name__ == "__main__":

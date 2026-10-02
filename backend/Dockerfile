@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set up user with UID 1000 (Hugging Face default requirement)
 RUN useradd -m -u 1000 user
 USER user
-ENV HOME=/home/user \
+ENV PYTHONUNBUFFERED=1 \
+    HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
 WORKDIR $HOME/app

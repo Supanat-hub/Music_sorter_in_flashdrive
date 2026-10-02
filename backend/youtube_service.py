@@ -4,6 +4,8 @@ import tempfile
 import yt_dlp
 from typing import List, Dict, Any, Optional
 
+import base64
+
 COOKIE_ENV_VAR = "YOUTUBE_COOKIES"
 
 _cached_cookie_path: Optional[str] = None
@@ -11,26 +13,44 @@ _cached_cookie_path: Optional[str] = None
 def get_cookie_file_path() -> Optional[str]:
     """
     Check if YOUTUBE_COOKIES environment variable is provided.
-    If provided, write to a temp file and return the path (cached).
+    If provided, normalize newlines, handle base64 if prefixed,
+    ensure Netscape header, write to a temp file and return the path (cached).
     """
     global _cached_cookie_path
     if _cached_cookie_path and os.path.exists(_cached_cookie_path):
         return _cached_cookie_path
 
     cookies_content = os.getenv(COOKIE_ENV_VAR)
-    if not cookies_content:
+    if not cookies_content or not cookies_content.strip():
         return None
     
+    cookies_content = cookies_content.strip()
+
     # Check if it's already a valid file path
     if os.path.isfile(cookies_content):
         _cached_cookie_path = cookies_content
         return _cached_cookie_path
     
-    # Otherwise treat as cookie file text content
-    temp_cookie = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt")
+    # Handle base64 encoded cookies
+    if cookies_content.startswith("base64:"):
+        try:
+            cookies_content = base64.b64decode(cookies_content[7:]).decode('utf-8', errors='ignore')
+        except Exception as e:
+            print(f"Error decoding base64 cookie: {e}", flush=True)
+    elif "\\n" in cookies_content and "\n" not in cookies_content:
+        # Unescape literal \n into real newlines
+        cookies_content = cookies_content.replace("\\n", "\n")
+        
+    # Ensure standard Netscape header is present for yt-dlp cookie parser
+    if not cookies_content.startswith("# Netscape") and not cookies_content.startswith("# HTTP"):
+        cookies_content = "# Netscape HTTP Cookie File\n" + cookies_content
+
+    # Write normalized cookie file
+    temp_cookie = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt", encoding="utf-8")
     temp_cookie.write(cookies_content)
     temp_cookie.close()
     _cached_cookie_path = temp_cookie.name
+    print(f"Created sanitized cookie file at {_cached_cookie_path} (length={len(cookies_content)} bytes)", flush=True)
     return _cached_cookie_path
 
 def clean_song_title(title: str) -> str:
