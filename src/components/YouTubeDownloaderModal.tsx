@@ -451,62 +451,101 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           </button>
         </div>
 
-        {/* 4 Navigation Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-2 sm:px-4 pt-2 gap-1 sm:gap-2 text-xs sm:text-sm font-semibold overflow-x-auto">
-          {/* Tab 1: Remix & Dance (Default, 100% reliable on Cloud) */}
-          <button
-            onClick={() => setActiveTab('remix')}
-            className={`flex items-center gap-1.5 sm:gap-2 py-2.5 px-3 sm:px-4 border-b-2 transition whitespace-nowrap ${
-              activeTab === 'remix'
-                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-sm font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Zap className="w-4 h-4 text-amber-500" />
-            <span>เพลงรีมิกซ์ & แดนซ์</span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
-              เร็วสุด
-            </span>
-          </button>
+        {/* Navigation Tabs (Elevated Floating Segmented Control - ไม่จม) */}
+        <div className="p-2.5 sm:p-3.5 bg-slate-100 border-b border-slate-200">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-200/90 p-1.5 rounded-2xl shadow-inner">
+            {/* Tab 1: Remix & Dance */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('remix')}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'remix'
+                  ? 'bg-white text-emerald-700 shadow-md ring-2 ring-emerald-500/40 -translate-y-0.5'
+                  : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-slate-900 shadow-xs'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg flex-shrink-0 ${activeTab === 'remix' ? 'bg-amber-100 text-amber-600' : 'bg-slate-200/80 text-slate-500'}`}>
+                <Zap className="w-4 h-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate">เพลงรีมิกซ์ & แดนซ์</span>
+                </div>
+                <span className={`text-[10px] font-semibold block leading-tight ${activeTab === 'remix' ? 'text-emerald-600 font-bold' : 'text-slate-500'}`}>
+                  ฟรี 100% เร็วสุด
+                </span>
+              </div>
+            </button>
 
-          {/* Tab 2: Curated Packs */}
-          <button
-            onClick={() => setActiveTab('packs')}
-            className={`flex items-center gap-1.5 sm:gap-2 py-2.5 px-3 sm:px-4 border-b-2 transition whitespace-nowrap ${
-              activeTab === 'packs'
-                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-sm font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Disc3 className="w-4 h-4 text-violet-500" />
-            <span>คลังเซ็ตเพลงฮิต</span>
-          </button>
+            {/* Tab 2: Curated Packs */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('packs')}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'packs'
+                  ? 'bg-white text-violet-700 shadow-md ring-2 ring-violet-500/40 -translate-y-0.5'
+                  : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-slate-900 shadow-xs'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg flex-shrink-0 ${activeTab === 'packs' ? 'bg-violet-100 text-violet-600' : 'bg-slate-200/80 text-slate-500'}`}>
+                <Disc3 className="w-4 h-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate">คลังเซ็ตเพลงฮิต</span>
+                </div>
+                <span className={`text-[10px] font-semibold block leading-tight ${activeTab === 'packs' ? 'text-violet-600 font-bold' : 'text-slate-500'}`}>
+                  รวมชุดสำเร็จ
+                </span>
+              </div>
+            </button>
 
-          {/* Tab 3: YouTube */}
-          <button
-            onClick={() => setActiveTab('youtube')}
-            className={`flex items-center gap-1.5 sm:gap-2 py-2.5 px-3 sm:px-4 border-b-2 transition whitespace-nowrap ${
-              activeTab === 'youtube'
-                ? 'border-red-600 text-red-600 bg-white rounded-t-lg shadow-sm font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <YouTubeIcon className="w-4 h-4" />
-            <span>YouTube</span>
-          </button>
+            {/* Tab 3: YouTube */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('youtube')}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'youtube'
+                  ? 'bg-white text-red-600 shadow-md ring-2 ring-red-500/40 -translate-y-0.5'
+                  : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-slate-900 shadow-xs'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg flex-shrink-0 ${activeTab === 'youtube' ? 'bg-red-100 text-red-600' : 'bg-slate-200/80 text-slate-500'}`}>
+                <YouTubeIcon className="w-4 h-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate">YouTube</span>
+                </div>
+                <span className={`text-[10px] font-semibold block leading-tight ${activeTab === 'youtube' ? 'text-red-600 font-bold' : 'text-slate-500'}`}>
+                  ค้นหา & วิดีโอ
+                </span>
+              </div>
+            </button>
 
-          {/* Tab 4: Paste URL */}
-          <button
-            onClick={() => setActiveTab('url')}
-            className={`flex items-center gap-1.5 sm:gap-2 py-2.5 px-3 sm:px-4 border-b-2 transition whitespace-nowrap ${
-              activeTab === 'url'
-                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-sm font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <LinkIcon className="w-4 h-4 text-sky-600" />
-            <span>วางลิงก์เพลง</span>
-          </button>
+            {/* Tab 4: Paste URL */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('url')}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'url'
+                  ? 'bg-white text-sky-700 shadow-md ring-2 ring-sky-500/40 -translate-y-0.5'
+                  : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-slate-900 shadow-xs'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg flex-shrink-0 ${activeTab === 'url' ? 'bg-sky-100 text-sky-600' : 'bg-slate-200/80 text-slate-500'}`}>
+                <LinkIcon className="w-4 h-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate">วางลิงก์เพลง</span>
+                </div>
+                <span className={`text-[10px] font-semibold block leading-tight ${activeTab === 'url' ? 'text-sky-600 font-bold' : 'text-slate-500'}`}>
+                  ใส่ URL ตรงๆ
+                </span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}

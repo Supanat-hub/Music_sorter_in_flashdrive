@@ -87,13 +87,11 @@ def clean_song_title(title: str) -> str:
 def get_base_ydl_opts(use_cookies: bool = True) -> dict:
     """
     Base configuration for yt-dlp to maximize bypass capabilities on cloud/datacenter IPs.
-    If cookies are available, web client is supported (as cookies are exported from browser).
-    If no cookies, mobile clients (android, ios, mweb) are prioritized to avoid bot challenges.
+    Prioritizes modern visionos and android clients to extract pure audio without bot verification.
     """
     cookie_path = get_cookie_file_path() if use_cookies else None
     
-    # Web client works best with browser cookies; mobile clients work best without cookies
-    clients = ['web', 'android', 'ios'] if cookie_path else ['android', 'ios', 'mweb']
+    clients = ['visionos', 'android', 'default']
     
     opts = {
         'quiet': True,
@@ -145,6 +143,13 @@ def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         if not entry:
             continue
         
+        entry_id = str(entry.get('id') or '')
+        # Skip channel or user URLs
+        if entry.get('_type') == 'url' and ('channel/' in entry.get('url', '') or 'user/' in entry.get('url', '')):
+            continue
+        if entry_id.startswith('UC') and len(entry_id) == 24:
+            continue
+        
         duration = entry.get('duration') or 0
         is_live = bool(entry.get('is_live'))
         is_too_long = duration > MAX_DURATION_SECONDS
@@ -153,13 +158,13 @@ def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         
         # Best thumbnail
         thumbnails = entry.get('thumbnails') or []
-        thumbnail_url = thumbnails[-1]['url'] if thumbnails else f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg"
+        thumbnail_url = thumbnails[-1]['url'] if thumbnails else f"https://i.ytimg.com/vi/{entry_id}/hqdefault.jpg"
         
         results.append({
-            'id': entry.get('id'),
+            'id': entry_id,
             'title': clean_song_title(entry.get('title', 'Unknown Title')),
             'original_title': entry.get('title'),
-            'url': entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
+            'url': entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry_id}",
             'duration': duration,
             'duration_str': duration_str,
             'is_live': is_live,
@@ -353,10 +358,12 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
     else:
         has_cookies = bool(get_cookie_file_path())
 
-        def try_download(use_cookies: bool) -> Any:
+        def try_download(use_cookies: bool, client_list: list = None) -> Any:
             opts = get_base_ydl_opts(use_cookies=use_cookies)
+            if client_list:
+                opts['extractor_args'] = {'youtube': {'player_client': client_list}}
             opts.update({
-                'format': 'bestaudio/best/ba/b/18',
+                'format': 'ba/bestaudio/b[height<=360]/b',
                 'outtmpl': out_template,
                 'noplaylist': True,
                 'postprocessors': [{
@@ -381,19 +388,26 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
                 return ydl.extract_info(url, download=True)
 
         info = None
+        # Try modern visionos/android without cookies first (most reliable on datacenter/cloud IPs)
         try:
-            info = try_download(use_cookies=has_cookies)
+            info = try_download(use_cookies=False, client_list=['visionos', 'android', 'default'])
         except Exception as first_err:
-            print(f"yt-dlp first attempt error (cookies={has_cookies}): {first_err}")
+            print(f"yt-dlp first attempt error (no cookies, visionos): {first_err}", flush=True)
             if has_cookies:
-                print("Retrying download without cookies using iOS/Android/mweb client...")
+                print("Retrying download with cookies...", flush=True)
                 try:
-                    info = try_download(use_cookies=False)
+                    info = try_download(use_cookies=True, client_list=['web', 'android', 'default'])
                 except Exception as second_err:
-                    print(f"yt-dlp fallback attempt error: {second_err}")
-                    raise second_err
+                    print(f"yt-dlp cookie attempt error: {second_err}", flush=True)
+                    try:
+                        info = try_download(use_cookies=False, client_list=['android'])
+                    except Exception as third_err:
+                        raise third_err
             else:
-                raise first_err
+                try:
+                    info = try_download(use_cookies=False, client_list=['android'])
+                except Exception as fallback_err:
+                    raise fallback_err
 
     if not info:
         raise ValueError("ไม่สามารถสกัดเสียงได้: ไฟล์ไม่พร้อมใช้งานหรือถูกจำกัดสิทธิ์")
