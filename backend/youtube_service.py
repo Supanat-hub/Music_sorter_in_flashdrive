@@ -67,8 +67,14 @@ def clean_song_title(title: str) -> str:
 def get_base_ydl_opts(use_cookies: bool = True) -> dict:
     """
     Base configuration for yt-dlp to maximize bypass capabilities on cloud/datacenter IPs.
-    Uses iOS, Android, and mobile web clients while excluding tv/web which trigger bot challenges.
+    If cookies are available, web client is supported (as cookies are exported from browser).
+    If no cookies, mobile clients (android, ios, mweb) are prioritized to avoid bot challenges.
     """
+    cookie_path = get_cookie_file_path() if use_cookies else None
+    
+    # Web client works best with browser cookies; mobile clients work best without cookies
+    clients = ['web', 'android', 'ios'] if cookie_path else ['android', 'ios', 'mweb']
+    
     opts = {
         'quiet': True,
         'no_warnings': True,
@@ -78,14 +84,12 @@ def get_base_ydl_opts(use_cookies: bool = True) -> dict:
         'logtostderr': False,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'mweb'],
+                'player_client': clients,
             }
         },
     }
-    if use_cookies:
-        cookie_path = get_cookie_file_path()
-        if cookie_path:
-            opts['cookiefile'] = cookie_path
+    if cookie_path:
+        opts['cookiefile'] = cookie_path
     return opts
 
 MAX_DURATION_SECONDS = 1200 # 20 minutes max per track
@@ -233,7 +237,7 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
     def try_download(use_cookies: bool) -> Any:
         opts = get_base_ydl_opts(use_cookies=use_cookies)
         opts.update({
-            'format': 'bestaudio/best',
+            'format': 'bestaudio/best/ba/b/18',
             'outtmpl': out_template,
             'noplaylist': True,
             'postprocessors': [{

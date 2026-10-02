@@ -1,6 +1,6 @@
 fastapi>=0.115.0
 uvicorn>=0.32.0
-yt-dlp>=2025.01.26
+yt-dlp[default]>=2025.01.26
 pydantic>=2.9.0
 requests>=2.32.0
 python-multipart>=0.0.12
