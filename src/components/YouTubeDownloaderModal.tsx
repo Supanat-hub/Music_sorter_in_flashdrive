@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Search,
@@ -14,6 +14,8 @@ import {
   Square,
   Radio,
   ClockAlert,
+  Play,
+  Volume2,
 } from 'lucide-react';
 import { YouTubeIcon } from './YouTubeIcon';
 import { YouTubeSearchResult, YouTubeUrlInfo } from '../types/audio';
@@ -29,6 +31,16 @@ interface YouTubeDownloaderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTrackDownloaded: (file: File) => void;
+}
+
+interface PreviewTrack {
+  id: string;
+  title: string;
+  channel?: string;
+  url: string;
+  duration_str?: string;
+  is_live?: boolean;
+  is_too_long?: boolean;
 }
 
 export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
@@ -57,6 +69,24 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Preview State
+  const [previewTrack, setPreviewTrack] = useState<PreviewTrack | null>(null);
+
+  // Stop preview whenever modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setPreviewTrack(null);
+    }
+  }, [isOpen]);
+
+  const handleTogglePreview = (track: PreviewTrack) => {
+    if (previewTrack?.id === track.id) {
+      setPreviewTrack(null);
+    } else {
+      setPreviewTrack(track);
+    }
+  };
 
   // Hidden Developer Mode (Click logo 5 times)
   const [logoClickCount, setLogoClickCount] = useState<number>(0);
@@ -250,7 +280,10 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => {
+              setPreviewTrack(null);
+              onClose();
+            }}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition"
             title="ปิดหน้าต่าง"
           >
@@ -465,38 +498,75 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                             </p>
                           </div>
 
-                          {/* Download button */}
-                          <button
-                            onClick={() => handleDownloadSingle(item.url, item.id, item.title)}
-                            disabled={downloadingId !== null || isBlocked}
-                            className={`flex items-center gap-1.5 font-bold text-xs sm:text-sm py-2 px-3 sm:px-4 rounded-xl transition flex-shrink-0 shadow-sm ${
-                              isBlocked
-                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white'
-                            }`}
-                            title={
-                              item.is_live
-                                ? 'ไม่รองรับวิดีโอถ่ายทอดสด'
-                                : item.is_too_long
-                                ? 'วิดีโอยาวเกิน 20 นาที รองรับเฉพาะเพลงความยาวปกติ'
-                                : 'กดดาวน์โหลดเพลงนี้'
-                            }
-                          >
-                            {downloadingId === item.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Download className="w-4 h-4" />
-                            )}
-                            <span>
-                              {downloadingId === item.id
-                                ? 'กำลังดึง...'
-                                : item.is_live
-                                ? 'ไม่รองรับไลฟ์'
-                                : item.is_too_long
-                                ? 'เกิน 20 นาที'
-                                : 'ดึงเพลงนี้'}
-                            </span>
-                          </button>
+                          {/* Actions: Preview & Download */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {/* Preview button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleTogglePreview({
+                                  id: item.id,
+                                  title: item.title,
+                                  channel: item.channel,
+                                  url: item.url,
+                                  duration_str: item.duration_str,
+                                  is_live: item.is_live,
+                                  is_too_long: item.is_too_long,
+                                })
+                              }
+                              className={`flex items-center gap-1 font-bold text-xs sm:text-sm py-2 px-2.5 sm:px-3 rounded-xl transition ${
+                                previewTrack?.id === item.id
+                                  ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 ring-2 ring-rose-400'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                              title={previewTrack?.id === item.id ? 'หยุดเล่นตัวอย่าง' : 'กดฟังตัวอย่างเพลงนี้'}
+                            >
+                              {previewTrack?.id === item.id ? (
+                                <>
+                                  <Square className="w-3.5 h-3.5 fill-rose-600 text-rose-600" />
+                                  <span className="hidden sm:inline">หยุด</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3.5 h-3.5 fill-slate-700 text-slate-700" />
+                                  <span className="hidden sm:inline">ฟัง</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Download button */}
+                            <button
+                              onClick={() => handleDownloadSingle(item.url, item.id, item.title)}
+                              disabled={downloadingId !== null || isBlocked}
+                              className={`flex items-center gap-1.5 font-bold text-xs sm:text-sm py-2 px-3 sm:px-4 rounded-xl transition flex-shrink-0 shadow-sm ${
+                                isBlocked
+                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white'
+                              }`}
+                              title={
+                                item.is_live
+                                  ? 'ไม่รองรับวิดีโอถ่ายทอดสด'
+                                  : item.is_too_long
+                                  ? 'วิดีโอยาวเกิน 20 นาที รองรับเฉพาะเพลงความยาวปกติ'
+                                  : 'กดดาวน์โหลดเพลงนี้'
+                              }
+                            >
+                              {downloadingId === item.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
+                              <span>
+                                {downloadingId === item.id
+                                  ? 'กำลังดึง...'
+                                  : item.is_live
+                                  ? 'ไม่รองรับไลฟ์'
+                                  : item.is_too_long
+                                  ? 'เกิน 20 นาที'
+                                  : 'ดึงเพลงนี้'}
+                              </span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -571,30 +641,69 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                     </div>
                   </div>
 
-                  {urlInfo.is_live ? (
-                    <span className="text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-                      ไม่รองรับการดาวน์โหลดวิดีโอถ่ายทอดสด
-                    </span>
-                  ) : urlInfo.is_too_long ? (
-                    <span className="text-amber-800 text-xs font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
-                      วิดีโอยาวเกิน 20 นาที (รองรับเฉพาะเพลงสั้น)
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        handleDownloadSingle(urlInfo.url || urlInput, urlInfo.id || 'single', urlInfo.title)
-                      }
-                      disabled={downloadingId !== null}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition shadow-md flex-shrink-0"
-                    >
-                      {downloadingId === urlInfo.id ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Download className="w-5 h-5" />
-                      )}
-                      <span>ดาวน์โหลดเพลงนี้</span>
-                    </button>
-                  )}
+                  <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto flex-shrink-0">
+                    {/* Preview button for single video */}
+                    {urlInfo.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!urlInfo.id) return;
+                          handleTogglePreview({
+                            id: urlInfo.id,
+                            title: urlInfo.title,
+                            channel: urlInfo.channel,
+                            url: urlInfo.url || urlInput,
+                            duration_str: urlInfo.duration_str,
+                            is_live: urlInfo.is_live,
+                            is_too_long: urlInfo.is_too_long,
+                          });
+                        }}
+                        className={`w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-sm py-3 px-4 rounded-xl transition border ${
+                          previewTrack?.id === urlInfo.id
+                            ? 'bg-rose-100 text-rose-700 border-rose-300 ring-2 ring-rose-400'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                        title={previewTrack?.id === urlInfo.id ? 'หยุดเล่นตัวอย่าง' : 'ฟังตัวอย่างเพลงนี้'}
+                      >
+                        {previewTrack?.id === urlInfo.id ? (
+                          <>
+                            <Square className="w-4 h-4 fill-rose-600 text-rose-600" />
+                            <span>หยุดฟัง</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 fill-slate-700 text-slate-700" />
+                            <span>ฟังตัวอย่าง</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {urlInfo.is_live ? (
+                      <span className="text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+                        ไม่รองรับการดาวน์โหลดวิดีโอถ่ายทอดสด
+                      </span>
+                    ) : urlInfo.is_too_long ? (
+                      <span className="text-amber-800 text-xs font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                        วิดีโอยาวเกิน 20 นาที (รองรับเฉพาะเพลงสั้น)
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          handleDownloadSingle(urlInfo.url || urlInput, urlInfo.id || 'single', urlInfo.title)
+                        }
+                        disabled={downloadingId !== null}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition shadow-md flex-shrink-0"
+                      >
+                        {downloadingId === urlInfo.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Download className="w-5 h-5" />
+                        )}
+                        <span>ดาวน์โหลดเพลงนี้</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -665,7 +774,33 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                               {item.title}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTogglePreview({
+                                  id: item.id,
+                                  title: item.title,
+                                  url: item.url,
+                                  duration_str: item.duration_str,
+                                  is_live: item.is_live,
+                                  is_too_long: item.is_too_long,
+                                });
+                              }}
+                              className={`p-1.5 rounded-lg transition ${
+                                previewTrack?.id === item.id
+                                  ? 'bg-rose-100 text-rose-700 ring-2 ring-rose-400'
+                                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                              }`}
+                              title={previewTrack?.id === item.id ? 'หยุดฟัง' : 'ฟังตัวอย่าง'}
+                            >
+                              {previewTrack?.id === item.id ? (
+                                <Square className="w-3.5 h-3.5 fill-rose-600 text-rose-600" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                              )}
+                            </button>
                             {item.is_too_long && (
                               <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
                                 เกิน 20 นาที
@@ -685,13 +820,87 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           )}
         </div>
 
+        {/* Sticky Preview Player Bar (Active when user clicks to listen) */}
+        {previewTrack && (
+          <div className="bg-slate-900 text-white px-4 py-3 border-t border-slate-700 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
+              <div className="relative w-28 sm:w-36 h-16 sm:h-20 bg-black rounded-lg overflow-hidden flex-shrink-0 shadow-md">
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${previewTrack.id}?autoplay=1&playsinline=1`}
+                  title={`YouTube preview: ${previewTrack.title}`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full border-0"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold mb-0.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <Volume2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>กำลังฟังตัวอย่าง</span>
+                  {previewTrack.duration_str && (
+                    <span className="text-slate-400 font-mono text-[11px]">({previewTrack.duration_str})</span>
+                  )}
+                </div>
+                <p className="font-bold text-sm sm:text-base text-white truncate" title={previewTrack.title}>
+                  {previewTrack.title}
+                </p>
+                {previewTrack.channel && (
+                  <p className="text-xs text-slate-400 truncate mt-0.5">
+                    {previewTrack.channel}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setPreviewTrack(null)}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                title="หยุดเล่นและปิดตัวอย่าง"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+                <span>ปิดตัวอย่าง</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadSingle(previewTrack.url, previewTrack.id, previewTrack.title)}
+                disabled={downloadingId !== null || previewTrack.is_live || previewTrack.is_too_long}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow ${
+                  previewTrack.is_live || previewTrack.is_too_long
+                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white'
+                }`}
+              >
+                {downloadingId === previewTrack.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>
+                  {previewTrack.is_live
+                    ? 'ไม่รองรับไลฟ์'
+                    : previewTrack.is_too_long
+                    ? 'เกิน 20 นาที'
+                    : 'โหลดเพลงนี้'}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Footer Actions */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
           <span>
             💡 เพลงที่ดาวน์โหลดจะถูกส่งเข้าเพลย์ลิสต์ทันที สามารถกดฟังตัวอย่างและตัดท่อนที่ไม่ต้องการได้
           </span>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setPreviewTrack(null);
+              onClose();
+            }}
             className="px-4 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 rounded-xl transition text-sm"
           >
             ปิด
