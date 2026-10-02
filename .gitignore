@@ -12,3 +12,6 @@ dist-ssr
 *.sln
 *.sw?
 sample_music
+__pycache__/
+*.py[cod]
+.venv/

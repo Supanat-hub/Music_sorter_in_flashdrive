@@ -25,6 +25,7 @@ import {
   downloadYouTubeTrack,
   getBackendUrl,
   setBackendUrl,
+  detectBestBackendUrl,
 } from '../utils/youtubeApi';
 
 interface YouTubeDownloaderModalProps {
@@ -72,6 +73,21 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
 
   // Preview State
   const [previewTrack, setPreviewTrack] = useState<PreviewTrack | null>(null);
+
+  // Backend Connection Mode State (Local vs Cloud)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'local' | 'cloud'>('checking');
+  const [isLocalMode, setIsLocalMode] = useState<boolean>(false);
+
+  // Auto-detect best backend (Localhost vs Render) on modal open
+  useEffect(() => {
+    if (isOpen) {
+      detectBestBackendUrl().then((url) => {
+        const local = url.includes('localhost') || url.includes('127.0.0.1');
+        setIsLocalMode(local);
+        setBackendStatus(local ? 'local' : 'cloud');
+      });
+    }
+  }, [isOpen]);
 
   // Stop preview whenever modal closes
   useEffect(() => {
@@ -270,9 +286,23 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
               <YouTubeIcon className="w-7 h-7 text-white" />
             </button>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                <span>ดาวน์โหลดเพลงจาก YouTube</span>
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                  <span>ดาวน์โหลดเพลงจาก YouTube</span>
+                </h2>
+                {backendStatus === 'local' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/30 text-emerald-100 border border-emerald-400/40 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                    โหมดในเครื่อง (เร็ว 100%)
+                  </span>
+                )}
+                {backendStatus === 'cloud' && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/15 text-white/90 border border-white/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-300"></span>
+                    คลาวด์ Render
+                  </span>
+                )}
+              </div>
               <p className="text-white/90 text-xs sm:text-sm">
                 ค้นหาหรือวางลิงก์เพื่อเพิ่มเพลงลงเพลย์ลิสต์สำหรับเปิดบนลำโพง
               </p>
@@ -363,12 +393,23 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           {downloadError && (
             <div className="bg-rose-50 border border-rose-300 text-rose-800 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <p className="font-bold text-sm sm:text-base">ไม่สามารถดาวน์โหลดเพลงนี้ได้</p>
                 <p className="text-xs sm:text-sm text-rose-700 mt-0.5">{downloadError}</p>
-                <p className="text-xs text-rose-600 mt-1">
-                  💡 คำแนะนำ: หากเพลงติดลิขสิทธิ์หรือไม่สามารถโหลดได้ กรุณาลองเลือกเวอร์ชันอื่นหรือพิมพ์ค้นหาใหม่
-                </p>
+                {!isLocalMode ? (
+                  <div className="mt-2.5 pt-2.5 border-t border-rose-200/80 text-xs text-slate-700 bg-white/80 p-3 rounded-lg">
+                    <p className="font-bold text-emerald-800 flex items-center gap-1.5 text-xs sm:text-sm">
+                      ⚡ วิธีแก้ให้โหลดได้ 100% ทุกเพลง (ไม่มีติดบล็อก):
+                    </p>
+                    <p className="mt-1 text-slate-600 leading-relaxed">
+                      เพลงที่มีลิขสิทธิ์บางเพลง YouTube จะบล็อก IP เซิร์ฟเวอร์ Cloud — ให้เปิดไฟล์ <code className="bg-emerald-50 text-emerald-800 font-semibold px-1.5 py-0.5 rounded border border-emerald-200">start-downloader.bat</code> ในโฟลเดอร์โปรเจกต์บนเครื่องของคุณ ระบบจะสลับมาดาวน์โหลดผ่านเน็ตบ้านของคุณอัตโนมัติ เร็ว 100% ทุกเพลง!
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-rose-600 mt-1">
+                    💡 คำแนะนำ: หากเพลงติดข้อจำกัดเฉพาะ กรุณาลองเลือกเวอร์ชันอื่นหรือพิมพ์ค้นหาใหม่
+                  </p>
+                )}
               </div>
             </div>
           )}

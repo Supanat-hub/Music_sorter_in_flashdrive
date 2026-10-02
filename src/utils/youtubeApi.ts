@@ -5,6 +5,10 @@ const STORAGE_KEY = 'music_sorter_yt_api_url';
 export const DEFAULT_BACKEND_URL =
   ((import.meta as any).env?.VITE_YT_BACKEND_URL) ||
   'https://music-sorter-api.onrender.com';
+export const LOCAL_BACKEND_URL = 'http://localhost:7860';
+
+let cachedBackendUrl: string | null = null;
+let lastCheckTime = 0;
 
 export const getBackendUrl = (): string => {
   if (typeof window !== 'undefined') {
@@ -13,25 +17,65 @@ export const getBackendUrl = (): string => {
       return saved.trim().replace(/\/+$/, '');
     }
   }
-  return DEFAULT_BACKEND_URL.replace(/\/+$/, '');
+  return (cachedBackendUrl || DEFAULT_BACKEND_URL).replace(/\/+$/, '');
+};
+
+export const detectBestBackendUrl = async (): Promise<string> => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && saved.trim()) {
+      cachedBackendUrl = saved.trim().replace(/\/+$/, '');
+      return cachedBackendUrl;
+    }
+  }
+
+  // Cache detection result for 20 seconds
+  const now = Date.now();
+  if (cachedBackendUrl && now - lastCheckTime < 20000) {
+    return cachedBackendUrl;
+  }
+
+  // Probe localhost:7860 with a quick 500ms timeout
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600);
+    const res = await fetch(`${LOCAL_BACKEND_URL}/api/health`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      cachedBackendUrl = LOCAL_BACKEND_URL;
+      lastCheckTime = now;
+      return LOCAL_BACKEND_URL;
+    }
+  } catch {
+    // Localhost not running
+  }
+
+  const fallbackUrl = DEFAULT_BACKEND_URL.replace(/\/+$/, '');
+  cachedBackendUrl = fallbackUrl;
+  lastCheckTime = now;
+  return fallbackUrl;
 };
 
 export const setBackendUrl = (url: string): void => {
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, url.trim().replace(/\/+$/, ''));
+    cachedBackendUrl = url.trim().replace(/\/+$/, '');
   }
 };
 
 export const resetBackendUrl = (): void => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STORAGE_KEY);
+    cachedBackendUrl = null;
   }
 };
 
 export const checkBackendHealth = async (
   customUrl?: string
 ): Promise<{ ok: boolean; statusText: string }> => {
-  const target = (customUrl || getBackendUrl()).replace(/\/+$/, '');
+  const target = (customUrl || (await detectBestBackendUrl())).replace(/\/+$/, '');
   try {
     const res = await fetch(`${target}/api/health`, {
       method: 'GET',
@@ -51,7 +95,7 @@ export const searchYouTube = async (
   query: string,
   limit: number = 10
 ): Promise<YouTubeSearchResult[]> => {
-  const backend = getBackendUrl();
+  const backend = await detectBestBackendUrl();
   const url = `${backend}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`;
 
   const res = await fetch(url);
