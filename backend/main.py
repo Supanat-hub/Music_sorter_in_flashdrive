@@ -8,7 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import subprocess
-from youtube_service import search_youtube, get_url_info, download_audio_as_mp3, get_cookie_file_path, COOKIE_ENV_VAR
+import yt_dlp
+from youtube_service import (
+    search_youtube,
+    get_url_info,
+    download_audio_as_mp3,
+    get_cookie_file_path,
+    get_base_ydl_opts,
+    COOKIE_ENV_VAR,
+)
 
 app = FastAPI(
     title="Music Sorter YouTube Audio Backend",
