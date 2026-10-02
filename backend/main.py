@@ -11,6 +11,7 @@ import subprocess
 import yt_dlp
 from youtube_service import (
     search_youtube,
+    search_soundcloud,
     get_url_info,
     download_audio_as_mp3,
     get_cookie_file_path,
@@ -19,9 +20,9 @@ from youtube_service import (
 )
 
 app = FastAPI(
-    title="Music Sorter YouTube Audio Backend",
-    description="Backend service for searching and downloading MP3 audio from YouTube",
-    version="1.0.4"
+    title="Music Sorter Online Audio Backend",
+    description="Backend service for searching and downloading MP3 audio from SoundCloud & YouTube",
+    version="1.1.0"
 )
 
 # Enable CORS for all origins (allows local dev and production domain)
@@ -34,20 +35,26 @@ app.add_middleware(
     expose_headers=["Content-Disposition", "X-Audio-Title", "Content-Length"]
 )
 
-ALLOWED_YOUTUBE_HOSTS = {
+ALLOWED_HOSTS = {
+    # YouTube
     'youtube.com',
     'www.youtube.com',
     'm.youtube.com',
     'music.youtube.com',
     'youtu.be',
+    # SoundCloud
+    'soundcloud.com',
+    'www.soundcloud.com',
+    'm.soundcloud.com',
+    'api.soundcloud.com',
 }
 
-def validate_youtube_url(url_str: str) -> str:
+def validate_audio_url(url_str: str) -> str:
     """
-    Validate that the URL belongs to legitimate YouTube domains to prevent SSRF
+    Validate that the URL belongs to legitimate YouTube or SoundCloud domains to prevent SSRF
     """
     if not url_str or not url_str.strip():
-        raise HTTPException(status_code=400, detail="กรุณาระบุลิงก์ YouTube")
+        raise HTTPException(status_code=400, detail="กรุณาระบุลิงก์เพลง")
     
     url_str = url_str.strip()
     try:
@@ -58,8 +65,11 @@ def validate_youtube_url(url_str: str) -> str:
         hostname = (parsed.hostname or '').lower()
         clean_host = hostname.removeprefix('www.')
         
-        if hostname not in ALLOWED_YOUTUBE_HOSTS and clean_host not in ALLOWED_YOUTUBE_HOSTS and not hostname.endswith('.youtube.com'):
-            raise ValueError("ระบบรองรับเฉพาะลิงก์จาก YouTube เท่านั้น (youtube.com หรือ youtu.be)")
+        is_yt = hostname in ALLOWED_HOSTS or clean_host in ALLOWED_HOSTS or hostname.endswith('.youtube.com')
+        is_sc = hostname in ALLOWED_HOSTS or clean_host in ALLOWED_HOSTS or hostname.endswith('.soundcloud.com')
+        
+        if not (is_yt or is_sc):
+            raise ValueError("ระบบรองรับเฉพาะลิงก์จาก YouTube หรือ SoundCloud เท่านั้น")
             
         return url_str
     except HTTPException:
@@ -170,20 +180,85 @@ def debug_formats(url: str = Query(...)):
 
     return out
 
+CURATED_PACKS = [
+    {
+        "id": "aerobic-dance",
+        "title": "เพลงเต้นแอโรบิก & ออกกำลังกาย",
+        "description": "จังหวะสนุกสนาน 130-140 BPM กระตุ้นหัวใจ เหมาะสำหรับเปิดกับลำโพงเต้นเช้า-เย็น",
+        "query": "เพลงเต้นแอโรบิก มันส์ๆ",
+        "tag": "เต้นแอโรบิก",
+        "badge": "ยอดนิยม",
+    },
+    {
+        "id": "sai-yow-remix",
+        "title": "สายย่อ & รถแห่ เบสแน่นๆ",
+        "description": "รวมเพลงแดนซ์เบสหนัก ลำโพงลั่น ท่อนฮุคมันส์ๆ ขวัญใจสายปาร์ตี้",
+        "query": "สายย่อ รถแห่ remix",
+        "tag": "สายย่อ รถแห่",
+        "badge": "เบสหนัก",
+    },
+    {
+        "id": "ncs-edm",
+        "title": "NoCopyrightSounds (NCS) EDM",
+        "description": "เพลงสากล Electronic Dance Music ไม่มีลิขสิทธิ์ 100% เสียงใส เบสคม",
+        "query": "NCS best of EDM remix",
+        "tag": "NCS EDM",
+        "badge": "ไม่มีลิขสิทธิ์ 100%",
+    },
+    {
+        "id": "country-dance-3cha",
+        "title": "3 ช่า & ลูกทุ่งโจ๊ะๆ มันส์ๆ",
+        "description": "จังหวะโจ๊ะ 3 ช่าไทยแท้ ร้องตามง่าย เต้นสนุก ลำโพงบลูทูธเปิดเพลิน",
+        "query": "3 ช่า มันส์ๆ remix",
+        "tag": "3 ช่า มันส์ๆ",
+        "badge": "จังหวะสนุก",
+    },
+    {
+        "id": "chill-travel",
+        "title": "เพลงฟังสบาย ขับรถ ชิลๆ",
+        "description": "เพลงเพราะฟังสบาย ผ่อนคลาย เหมาะกับการเปิดยาวๆ ในรถหรือพักผ่อน",
+        "query": "เพลงฟังสบาย acoustic thai",
+        "tag": "ฟังสบาย",
+        "badge": "ชิลๆ",
+    },
+]
+
+@app.get("/api/curated-packs")
+def get_curated_packs():
+    return {"packs": CURATED_PACKS}
+
 @app.get("/api/search")
-def search(q: str = Query(..., description="Search query string"), limit: int = Query(10, ge=1, le=20)):
+def search(
+    q: str = Query(..., description="Search query string"),
+    source: str = Query("soundcloud", description="Source: 'soundcloud', 'youtube', or 'all'"),
+    limit: int = Query(12, ge=1, le=30)
+):
     if not q.strip():
         raise HTTPException(status_code=400, detail="คำค้นหาต้องไม่ว่างเปล่า")
+    query_str = q.strip()
     try:
-        results = search_youtube(q.strip(), limit=limit)
-        return {"query": q, "results": results}
+        if source == "youtube":
+            results = search_youtube(query_str, limit=limit)
+        elif source == "soundcloud":
+            results = search_soundcloud(query_str, limit=limit)
+        else: # "all"
+            # Prioritize soundcloud (fast, cloud-friendly), fallback or supplement with youtube
+            sc_results = search_soundcloud(query_str, limit=limit)
+            results = sc_results
+            if len(results) < limit:
+                try:
+                    yt_results = search_youtube(query_str, limit=limit - len(results))
+                    results.extend(yt_results)
+                except Exception as yt_err:
+                    print(f"YouTube search supplementary error: {yt_err}", flush=True)
+        return {"query": query_str, "source": source, "results": results}
     except Exception as e:
         print(f"Search error: {e}", flush=True)
-        raise HTTPException(status_code=500, detail="ระบบค้นหาขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง")
+        raise HTTPException(status_code=500, detail=f"ระบบค้นหาขัดข้องชั่วคราว: {str(e)[:100]}")
 
 @app.get("/api/info")
-def get_info(url: str = Query(..., description="YouTube video or playlist URL")):
-    validated_url = validate_youtube_url(url)
+def get_info(url: str = Query(..., description="Audio or playlist URL")):
+    validated_url = validate_audio_url(url)
     try:
         info = get_url_info(validated_url)
         return info
@@ -198,14 +273,14 @@ def download_audio_post(req: DownloadRequest, background_tasks: BackgroundTasks)
     return process_download(req.url, background_tasks)
 
 @app.get("/api/download")
-def download_audio_get(url: str = Query(..., description="YouTube URL"), background_tasks: BackgroundTasks = None):
+def download_audio_get(url: str = Query(..., description="Audio URL"), background_tasks: BackgroundTasks = None):
     return process_download(url, background_tasks)
 
 def process_download(url: str, background_tasks: BackgroundTasks):
-    validated_url = validate_youtube_url(url)
+    validated_url = validate_audio_url(url)
     
     # Create temporary working directory for this download
-    temp_dir = tempfile.mkdtemp(prefix="yt_audio_")
+    temp_dir = tempfile.mkdtemp(prefix="audio_dl_")
     
     try:
         result = download_audio_as_mp3(validated_url, temp_dir)
@@ -240,13 +315,13 @@ def process_download(url: str, background_tasks: BackgroundTasks):
         error_msg = str(e)
         print(f"CRITICAL DOWNLOAD ERROR: {error_msg}", flush=True)
         if "Private video" in error_msg:
-            detail = "วิดีโอนี้เป็นแบบส่วนตัว ไม่สามารถดาวน์โหลดได้"
+            detail = "ไฟล์/วิดีโอนี้เป็นแบบส่วนตัว ไม่สามารถดาวน์โหลดได้"
         elif "Sign in to confirm you’re not a bot" in error_msg or "Sign in" in error_msg:
-            detail = "YouTube ตรวจพบบ็อต: เซิร์ฟเวอร์ไม่สามารถยืนยันตัวตนได้ กรุณาตรวจสอบการตั้งค่าคุกกี้"
+            detail = "YouTube ตรวจพบบ็อตบน Cloud: แนะนำให้เลือกค้นหาผ่านแท็บ SoundCloud หรือเปิด start-downloader.bat ในเครื่อง"
         elif "This video is not available" in error_msg:
-            detail = "ไม่พบวิดีโอนี้ในระบบ YouTube"
+            detail = "ไม่พบเพลงนี้ในระบบ"
         elif "Requested format is not available" in error_msg:
-            detail = "ไม่พบรูปแบบไฟล์เสียงที่พร้อมดาวน์โหลดสำหรับวิดีโอนี้"
+            detail = "ไม่พบรูปแบบไฟล์เสียงที่พร้อมดาวน์โหลดสำหรับรายการนี้"
         else:
             detail = f"ดาวน์โหลดไม่สำเร็จ: {error_msg[:100]}"
         raise HTTPException(status_code=500, detail=detail)

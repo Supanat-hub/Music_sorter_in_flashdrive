@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { FolderOpen, Plus, RefreshCw, HardDrive } from 'lucide-react';
-import { YouTubeIcon } from './YouTubeIcon';
+import { FolderOpen, Plus, RefreshCw, HardDrive, Music } from 'lucide-react';
+
 import { isFileSystemAccessSupported, isAudioFile } from '../utils/fileSystem';
 
 interface FolderPickerProps {
@@ -109,10 +109,10 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
             <button
               onClick={onOpenYouTubeDownloader}
               disabled={isLoading}
-              className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 active:from-red-800 active:to-rose-800 disabled:opacity-50 text-white text-base sm:text-lg font-bold py-4 px-4 rounded-xl shadow-md transition"
+              className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 active:from-emerald-800 disabled:opacity-50 text-white text-base sm:text-lg font-bold py-4 px-4 rounded-xl shadow-md transition"
             >
-              <YouTubeIcon className="w-6 h-6 flex-shrink-0" />
-              <span>ดาวน์โหลดจาก YouTube</span>
+              <Music className="w-6 h-6 flex-shrink-0" />
+              <span>ดาวน์โหลดเพลงออนไลน์</span>
             </button>
           </div>
         ) : (
@@ -143,10 +143,10 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
 
               <button
                 onClick={onOpenYouTubeDownloader}
-                className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-3 py-2 rounded-lg text-sm shadow-sm transition"
+                className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold px-3 py-2 rounded-lg text-sm shadow-sm transition"
               >
-                <YouTubeIcon className="w-4 h-4 text-red-600" />
-                <span>โหลดจาก YouTube</span>
+                <Music className="w-4 h-4 text-emerald-600" />
+                <span>โหลดเพลงออนไลน์</span>
               </button>
 
               <button

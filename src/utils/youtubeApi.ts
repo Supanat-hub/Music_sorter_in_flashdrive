@@ -1,4 +1,4 @@
-import { YouTubeSearchResult, YouTubeUrlInfo } from '../types/audio';
+import { YouTubeSearchResult, YouTubeUrlInfo, CuratedPack } from '../types/audio';
 
 const STORAGE_KEY = 'music_sorter_yt_api_url';
 // Default to live Render deployment
@@ -91,12 +91,69 @@ export const checkBackendHealth = async (
   }
 };
 
-export const searchYouTube = async (
+export const getCuratedPacks = async (): Promise<CuratedPack[]> => {
+  const backend = await detectBestBackendUrl();
+  try {
+    const res = await fetch(`${backend}/api/curated-packs`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.packs || [];
+    }
+  } catch (e) {
+    console.warn('Failed to load curated packs from backend, using fallback:', e);
+  }
+  // Fallback defaults if backend is unavailable
+  return [
+    {
+      id: 'aerobic-dance',
+      title: 'เพลงเต้นแอโรบิก & ออกกำลังกาย',
+      description: 'จังหวะสนุกสนาน 130-140 BPM กระตุ้นหัวใจ เหมาะสำหรับเปิดกับลำโพงเต้นเช้า-เย็น',
+      query: 'เพลงเต้นแอโรบิก มันส์ๆ',
+      tag: 'เต้นแอโรบิก',
+      badge: 'ยอดนิยม',
+    },
+    {
+      id: 'sai-yow-remix',
+      title: 'สายย่อ & รถแห่ เบสแน่นๆ',
+      description: 'รวมเพลงแดนซ์เบสหนัก ลำโพงลั่น ท่อนฮุคมันส์ๆ ขวัญใจสายปาร์ตี้',
+      query: 'สายย่อ รถแห่ remix',
+      tag: 'สายย่อ รถแห่',
+      badge: 'เบสหนัก',
+    },
+    {
+      id: 'ncs-edm',
+      title: 'NoCopyrightSounds (NCS) EDM',
+      description: 'เพลงสากล Electronic Dance Music ไม่มีลิขสิทธิ์ 100% เสียงใส เบสคม',
+      query: 'NCS best of EDM remix',
+      tag: 'NCS EDM',
+      badge: 'ไม่มีลิขสิทธิ์ 100%',
+    },
+    {
+      id: 'country-dance-3cha',
+      title: '3 ช่า & ลูกทุ่งโจ๊ะๆ มันส์ๆ',
+      description: 'จังหวะโจ๊ะ 3 ช่าไทยแท้ ร้องตามง่าย เต้นสนุก ลำโพงบลูทูธเปิดเพลิน',
+      query: '3 ช่า มันส์ๆ remix',
+      tag: '3 ช่า มันส์ๆ',
+      badge: 'จังหวะสนุก',
+    },
+    {
+      id: 'chill-travel',
+      title: 'เพลงฟังสบาย ขับรถ ชิลๆ',
+      description: 'เพลงเพราะฟังสบาย ผ่อนคลาย เหมาะกับการเปิดยาวๆ ในรถหรือพักผ่อน',
+      query: 'เพลงฟังสบาย acoustic thai',
+      tag: 'ฟังสบาย',
+      badge: 'ชิลๆ',
+    },
+  ];
+};
+
+export const searchAudio = async (
   query: string,
-  limit: number = 10
+  source: 'soundcloud' | 'youtube' | 'all' = 'soundcloud',
+  limit: number = 12
 ): Promise<YouTubeSearchResult[]> => {
   const backend = await detectBestBackendUrl();
-  const url = `${backend}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+  const url = `${backend}/api/search?q=${encodeURIComponent(query)}&source=${source}&limit=${limit}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -111,9 +168,12 @@ export const searchYouTube = async (
   return data.results || [];
 };
 
-export const getYouTubeUrlInfo = async (videoUrl: string): Promise<YouTubeUrlInfo> => {
+export const searchYouTube = (query: string, limit: number = 10) =>
+  searchAudio(query, 'youtube', limit);
+
+export const getAudioUrlInfo = async (audioUrl: string): Promise<YouTubeUrlInfo> => {
   const backend = getBackendUrl();
-  const url = `${backend}/api/info?url=${encodeURIComponent(videoUrl)}`;
+  const url = `${backend}/api/info?url=${encodeURIComponent(audioUrl)}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -121,18 +181,20 @@ export const getYouTubeUrlInfo = async (videoUrl: string): Promise<YouTubeUrlInf
       throw new Error('เซิร์ฟเวอร์กำลังตื่นจากการพัก กรุณารอประมาณ 30 วินาทีแล้วลองใหม่');
     }
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'ไม่สามารถเปิดข้อมูลลิงก์นี้ได้ กรุณาตรวจสอบว่าเป็นลิงก์ YouTube ที่ถูกต้อง');
+    throw new Error(errorData.detail || 'ไม่สามารถเปิดข้อมูลลิงก์นี้ได้ กรุณาตรวจสอบว่าเป็นลิงก์ SoundCloud หรือ YouTube ที่ถูกต้อง');
   }
 
   return await res.json();
 };
 
-export const downloadYouTubeTrack = async (
-  videoUrl: string,
+export const getYouTubeUrlInfo = getAudioUrlInfo;
+
+export const downloadAudioTrack = async (
+  audioUrl: string,
   signal?: AbortSignal
 ): Promise<{ file: File; title: string }> => {
   const backend = getBackendUrl();
-  const url = `${backend}/api/download?url=${encodeURIComponent(videoUrl)}`;
+  const url = `${backend}/api/download?url=${encodeURIComponent(audioUrl)}`;
 
   const res = await fetch(url, {
     method: 'GET',
@@ -148,7 +210,7 @@ export const downloadYouTubeTrack = async (
   }
 
   // Extract song title from X-Audio-Title header or Content-Disposition
-  let title = 'เพลงจาก YouTube';
+  let title = 'เพลงออนไลน์';
   const customTitleHeader = res.headers.get('X-Audio-Title');
   if (customTitleHeader) {
     try {
@@ -176,3 +238,5 @@ export const downloadYouTubeTrack = async (
 
   return { file: audioFile, title };
 };
+
+export const downloadYouTubeTrack = downloadAudioTrack;

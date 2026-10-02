@@ -37,6 +37,7 @@ export interface YouTubeSearchResult {
   is_too_long?: boolean;
   channel?: string;
   thumbnail?: string;
+  source?: 'youtube' | 'soundcloud';
 }
 
 export interface YouTubeUrlInfo {
@@ -52,4 +53,15 @@ export interface YouTubeUrlInfo {
   thumbnail?: string;
   total_items?: number;
   items?: YouTubeSearchResult[];
+  source?: 'youtube' | 'soundcloud';
 }
+
+export interface CuratedPack {
+  id: string;
+  title: string;
+  description: string;
+  query: string;
+  tag: string;
+  badge: string;
+}
+
