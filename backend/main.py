@@ -93,13 +93,28 @@ def health_check():
         pass
 
     cookie_file = get_cookie_file_path()
+    cookie_keys = []
+    if cookie_file and os.path.exists(cookie_file):
+        try:
+            with open(cookie_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("#") or not line.strip():
+                        continue
+                    parts = line.strip().split("\t")
+                    if len(parts) >= 6:
+                        cookie_keys.append(parts[5])
+        except Exception:
+            pass
+
     return {
         "status": "ok",
         "service": "music-sorter-youtube-api",
-        "version": "1.0.5",
+        "version": "1.0.6",
         "has_cookies": bool(raw_cookie.strip()),
         "cookie_length": len(raw_cookie.strip()),
         "cookie_file_ready": bool(cookie_file),
+        "cookie_keys": cookie_keys[:15],
+        "total_cookie_entries": len(cookie_keys),
         "node_version": node_version,
     }
 
