@@ -1,10 +1,10 @@
 import { YouTubeSearchResult, YouTubeUrlInfo } from '../types/audio';
 
 const STORAGE_KEY = 'music_sorter_yt_api_url';
-// Default to empty string or Hugging Face Space URL / Localhost
+// Default to live Render deployment
 export const DEFAULT_BACKEND_URL =
   ((import.meta as any).env?.VITE_YT_BACKEND_URL) ||
-  'https://plazedez-music-sorter-api.hf.space';
+  'https://music-sorter-api.onrender.com';
 
 export const getBackendUrl = (): string => {
   if (typeof window !== 'undefined') {
