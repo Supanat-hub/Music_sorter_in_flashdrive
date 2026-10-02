@@ -33,6 +33,8 @@ export interface YouTubeSearchResult {
   url: string;
   duration: number;
   duration_str: string;
+  is_live?: boolean;
+  is_too_long?: boolean;
   channel?: string;
   thumbnail?: string;
 }
@@ -44,6 +46,8 @@ export interface YouTubeUrlInfo {
   url?: string;
   duration?: number;
   duration_str?: string;
+  is_live?: boolean;
+  is_too_long?: boolean;
   channel?: string;
   thumbnail?: string;
   total_items?: number;

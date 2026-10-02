@@ -84,6 +84,8 @@ def get_base_ydl_opts() -> dict:
         opts['cookiefile'] = cookie_path
     return opts
 
+MAX_DURATION_SECONDS = 1200 # 20 minutes max per track
+
 def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search YouTube videos matching query
@@ -106,8 +108,10 @@ def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
                     continue
                 
                 duration = entry.get('duration') or 0
+                is_live = bool(entry.get('is_live'))
+                is_too_long = duration > MAX_DURATION_SECONDS
                 mins, secs = divmod(int(duration), 60)
-                duration_str = f"{mins:02d}:{secs:02d}"
+                duration_str = "LIVE" if is_live else f"{mins:02d}:{secs:02d}"
                 
                 # Best thumbnail
                 thumbnails = entry.get('thumbnails') or []
@@ -120,6 +124,8 @@ def search_youtube(query: str, limit: int = 10) -> List[Dict[str, Any]]:
                     'url': entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
                     'duration': duration,
                     'duration_str': duration_str,
+                    'is_live': is_live,
+                    'is_too_long': is_too_long,
                     'channel': entry.get('uploader') or entry.get('channel') or '',
                     'thumbnail': thumbnail_url,
                 })
@@ -139,7 +145,7 @@ def get_url_info(url: str) -> Dict[str, Any]:
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         if not info:
-            raise ValueError("Could not retrieve information for this URL")
+            raise ValueError("ไม่พบข้อมูลวิดีโอ กรุณาตรวจสอบว่าลิงก์ถูกต้องและเป็นสาธารณะ")
             
         is_playlist = 'entries' in info and isinstance(info['entries'], list)
         
@@ -150,14 +156,18 @@ def get_url_info(url: str) -> Dict[str, Any]:
                 if not entry:
                     continue
                 duration = entry.get('duration') or 0
+                is_live = bool(entry.get('is_live'))
+                is_too_long = duration > MAX_DURATION_SECONDS
                 mins, secs = divmod(int(duration), 60)
-                duration_str = f"{mins:02d}:{secs:02d}"
+                duration_str = "LIVE" if is_live else f"{mins:02d}:{secs:02d}"
                 items.append({
                     'id': entry.get('id'),
                     'title': clean_song_title(entry.get('title', 'Unknown Title')),
                     'url': entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
                     'duration': duration,
                     'duration_str': duration_str,
+                    'is_live': is_live,
+                    'is_too_long': is_too_long,
                     'thumbnail': f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg",
                 })
             return {
@@ -168,8 +178,10 @@ def get_url_info(url: str) -> Dict[str, Any]:
             }
         else:
             duration = info.get('duration') or 0
+            is_live = bool(info.get('is_live'))
+            is_too_long = duration > MAX_DURATION_SECONDS
             mins, secs = divmod(int(duration), 60)
-            duration_str = f"{mins:02d}:{secs:02d}"
+            duration_str = "LIVE" if is_live else f"{mins:02d}:{secs:02d}"
             
             thumbnails = info.get('thumbnails') or []
             thumbnail_url = thumbnails[-1]['url'] if thumbnails else f"https://i.ytimg.com/vi/{info.get('id')}/hqdefault.jpg"
@@ -181,6 +193,8 @@ def get_url_info(url: str) -> Dict[str, Any]:
                 'url': info.get('webpage_url') or url,
                 'duration': duration,
                 'duration_str': duration_str,
+                'is_live': is_live,
+                'is_too_long': is_too_long,
                 'channel': info.get('uploader') or '',
                 'thumbnail': thumbnail_url,
             }
@@ -207,13 +221,25 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
     
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
+            # Check duration and live status before downloading
+            meta = ydl.extract_info(url, download=False)
+            if not meta:
+                raise ValueError("ไม่สามารถเข้าถึงวิดีโอนี้ได้ หรือวิดีโอถูกตั้งค่าเป็นส่วนตัว")
+            
+            if meta.get('is_live'):
+                raise ValueError("ไม่รองรับการดาวน์โหลดวิดีโอที่เป็นการถ่ายทอดสด (Live Stream)")
+            
+            duration = meta.get('duration') or 0
+            if duration > MAX_DURATION_SECONDS:
+                raise ValueError("วิดีโอนี้มีความยาวเกิน 20 นาที รองรับเฉพาะเพลงความยาวปกติสำหรับการใส่แฟลชไดร์ฟ")
+            
             info = ydl.extract_info(url, download=True)
         except Exception as err:
-            print(f"yt-dlp extract_info error: {err}")
+            print(f"yt-dlp error: {err}")
             raise err
 
         if not info:
-            raise ValueError("Failed to extract audio: Video is unavailable or restricted")
+            raise ValueError("ไม่สามารถสกัดเสียงได้: วิดีโอไม่พร้อมใช้งานหรือถูกจำกัดสิทธิ์")
             
         video_id = info.get('id')
         title = clean_song_title(info.get('title', 'song'))
@@ -225,7 +251,7 @@ def download_audio_as_mp3(url: str, output_dir: str) -> Dict[str, str]:
             if potential_file:
                 mp3_path = os.path.join(output_dir, potential_file[0])
             else:
-                raise FileNotFoundError("Audio conversion failed: MP3 file not found")
+                raise FileNotFoundError("การแปลงไฟล์ล้มเหลว: ไม่พบไฟล์ MP3 ที่สร้างขึ้น")
                 
         return {
             'file_path': mp3_path,

@@ -56,8 +56,11 @@ export const searchYouTube = async (
 
   const res = await fetch(url);
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('เซิร์ฟเวอร์กำลังตื่นจากการพัก (Cold Start) กรุณารอประมาณ 30 วินาทีแล้วกดค้นหาใหม่อีกครั้ง');
+    }
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `การค้นหาล้มเหลว (HTTP ${res.status})`);
+    throw new Error(errorData.detail || 'การค้นหาขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
   }
 
   const data = await res.json();
@@ -70,8 +73,11 @@ export const getYouTubeUrlInfo = async (videoUrl: string): Promise<YouTubeUrlInf
 
   const res = await fetch(url);
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('เซิร์ฟเวอร์กำลังตื่นจากการพัก กรุณารอประมาณ 30 วินาทีแล้วลองใหม่');
+    }
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `ไม่สามารถดึงข้อมูลลิงก์ได้ (HTTP ${res.status})`);
+    throw new Error(errorData.detail || 'ไม่สามารถเปิดข้อมูลลิงก์นี้ได้ กรุณาตรวจสอบว่าเป็นลิงก์ YouTube ที่ถูกต้อง');
   }
 
   return await res.json();
@@ -90,8 +96,11 @@ export const downloadYouTubeTrack = async (
   });
 
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('เซิร์ฟเวอร์กำลังเตรียมระบบ กรุณารอประมาณ 30 วินาทีแล้วลองดาวน์โหลดใหม่');
+    }
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `การดาวน์โหลดล้มเหลว (HTTP ${res.status})`);
+    throw new Error(errorData.detail || 'ไม่สามารถดาวน์โหลดเพลงนี้ได้ กรุณาลองเลือกเพลงอื่น');
   }
 
   // Extract song title from X-Audio-Title header or Content-Disposition

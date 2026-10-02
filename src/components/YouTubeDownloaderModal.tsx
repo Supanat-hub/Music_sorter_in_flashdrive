@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Search,
@@ -7,13 +7,13 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Settings,
   RefreshCw,
   User,
   ListMusic,
   CheckSquare,
   Square,
-  ExternalLink,
+  Radio,
+  ClockAlert,
 } from 'lucide-react';
 import { YouTubeIcon } from './YouTubeIcon';
 import { YouTubeSearchResult, YouTubeUrlInfo } from '../types/audio';
@@ -23,8 +23,6 @@ import {
   downloadYouTubeTrack,
   getBackendUrl,
   setBackendUrl,
-  checkBackendHealth,
-  resetBackendUrl,
 } from '../utils/youtubeApi';
 
 interface YouTubeDownloaderModalProps {
@@ -38,7 +36,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
   onClose,
   onTrackDownloaded,
 }) => {
-  const [activeTab, setActiveTab] = useState<'search' | 'url' | 'settings'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'url'>('search');
 
   // Search State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -60,45 +58,28 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Settings State
-  const [customBackendUrl, setCustomBackendUrl] = useState<string>(getBackendUrl());
-  const [serverStatus, setServerStatus] = useState<{
-    tested: boolean;
-    ok: boolean;
-    message: string;
-  }>({ tested: false, ok: false, message: '' });
-  const [isTestingServer, setIsTestingServer] = useState<boolean>(false);
+  // Hidden Developer Mode (Click logo 5 times)
+  const [logoClickCount, setLogoClickCount] = useState<number>(0);
+  const lastLogoClickTimeRef = useRef<number>(0);
 
-  // Test server connection once when opened
-  useEffect(() => {
-    if (isOpen) {
-      checkServerHealth();
+  const handleLogoClick = () => {
+    const now = Date.now();
+    if (now - lastLogoClickTimeRef.current > 1500) {
+      setLogoClickCount(1);
+    } else {
+      const nextCount = logoClickCount + 1;
+      setLogoClickCount(nextCount);
+      if (nextCount >= 5) {
+        setLogoClickCount(0);
+        const currentUrl = getBackendUrl();
+        const newUrl = prompt('ตั้งค่า Developer Backend URL (สำหรับผู้ดูแลระบบ):', currentUrl);
+        if (newUrl !== null) {
+          setBackendUrl(newUrl);
+          alert('บันทึก Backend URL เรียบร้อย');
+        }
+      }
     }
-  }, [isOpen]);
-
-  const checkServerHealth = async (urlToCheck?: string) => {
-    setIsTestingServer(true);
-    const result = await checkBackendHealth(urlToCheck);
-    setServerStatus({
-      tested: true,
-      ok: result.ok,
-      message: result.ok
-        ? `เชื่อมต่อเซิร์ฟเวอร์สำเร็จ (${result.statusText})`
-        : `ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ${result.statusText}`,
-    });
-    setIsTestingServer(false);
-  };
-
-  const handleSaveSettings = () => {
-    setBackendUrl(customBackendUrl);
-    checkServerHealth(customBackendUrl);
-  };
-
-  const handleResetSettings = () => {
-    resetBackendUrl();
-    const def = getBackendUrl();
-    setCustomBackendUrl(def);
-    checkServerHealth(def);
+    lastLogoClickTimeRef.current = now;
   };
 
   // Perform search
@@ -115,7 +96,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
         setSearchError('ไม่พบเพลงที่ตรงกับการค้นหา กรุณาลองใช้คำค้นหาอื่น');
       }
     } catch (err: any) {
-      setSearchError(err.message || 'เกิดข้อผิดพลาดในการค้นหา');
+      setSearchError(err.message || 'การค้นหาขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsSearching(false);
     }
@@ -133,10 +114,13 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
       const info = await getYouTubeUrlInfo(urlInput.trim());
       setUrlInfo(info);
       if (info.type === 'playlist' && info.items) {
-        setSelectedPlaylistIds(info.items.map((i) => i.id));
+        // Only select items that are not live and not too long (< 20 mins)
+        setSelectedPlaylistIds(
+          info.items.filter((i) => !i.is_live && !i.is_too_long).map((i) => i.id)
+        );
       }
     } catch (err: any) {
-      setUrlError(err.message || 'ไม่สามารถดึงข้อมูลลิงก์นี้ได้ ตรวจสอบว่าลิงก์ถูกต้องและเป็นสาธารณะ');
+      setUrlError(err.message || 'ไม่สามารถเปิดข้อมูลลิงก์นี้ได้ กรุณาตรวจสอบว่าเป็นลิงก์ YouTube ที่ถูกต้อง');
     } finally {
       setIsLoadingUrl(false);
     }
@@ -145,7 +129,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
   // Download single track
   const handleDownloadSingle = async (url: string, id: string, titleHint?: string) => {
     setDownloadingId(id);
-    setDownloadProgressText(`กำลังดึงและแปลงไฟล์ "${titleHint || 'เพลง'}" เป็น MP3 (192kbps)...`);
+    setDownloadProgressText(`กำลังดาวน์โหลดและเตรียมเพลง "${titleHint || 'เพลง'}" สำหรับลำโพง...`);
     setDownloadError(null);
 
     const controller = new AbortController();
@@ -157,7 +141,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
       showSuccess(`ดาวน์โหลด "${title}" สำเร็จและเพิ่มเข้าเพลย์ลิสต์แล้ว!`);
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        setDownloadError(err.message || 'เกิดข้อผิดพลาดในการดาวน์โหลดเพลง');
+        setDownloadError(err.message || 'ไม่สามารถดาวน์โหลดเพลงนี้ได้ กรุณาลองเลือกเพลงอื่น');
       }
     } finally {
       setDownloadingId(null);
@@ -222,7 +206,8 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
     }, 4500);
   };
 
-  const togglePlaylistItem = (id: string) => {
+  const togglePlaylistItem = (id: string, isBlocked?: boolean) => {
+    if (isBlocked) return;
     setSelectedPlaylistIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
@@ -230,10 +215,11 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
 
   const toggleSelectAllPlaylist = () => {
     if (!urlInfo || !urlInfo.items) return;
-    if (selectedPlaylistIds.length === urlInfo.items.length) {
+    const availableItems = urlInfo.items.filter((i) => !i.is_live && !i.is_too_long);
+    if (selectedPlaylistIds.length === availableItems.length) {
       setSelectedPlaylistIds([]);
     } else {
-      setSelectedPlaylistIds(urlInfo.items.map((i) => i.id));
+      setSelectedPlaylistIds(availableItems.map((i) => i.id));
     }
   };
 
@@ -241,22 +227,24 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
         {/* Header */}
         <div className="bg-gradient-to-r from-red-600 via-rose-600 to-emerald-700 text-white p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+            <button
+              onClick={handleLogoClick}
+              type="button"
+              className="bg-white/20 p-2 rounded-xl backdrop-blur-md focus:outline-none transition active:scale-95"
+              title="YouTube Downloader"
+            >
               <YouTubeIcon className="w-7 h-7 text-white" />
-            </div>
+            </button>
             <div>
               <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                 <span>ดาวน์โหลดเพลงจาก YouTube</span>
-                <span className="text-xs bg-white/20 text-white font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  MP3 192k
-                </span>
               </h2>
-              <p className="text-white/80 text-xs sm:text-sm">
-                ค้นหาหรือวางลิงก์เพื่อดึงไฟล์เสียง MP3 เข้าเพลย์ลิสต์โดยตรง
+              <p className="text-white/90 text-xs sm:text-sm">
+                ค้นหาหรือวางลิงก์เพื่อเพิ่มเพลงลงเพลย์ลิสต์สำหรับเปิดบนลำโพง
               </p>
             </div>
           </div>
@@ -270,7 +258,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           </button>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs (Only 2 User-Friendly Tabs) */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-4 pt-2 gap-2 text-sm sm:text-base font-semibold">
           <button
             onClick={() => setActiveTab('search')}
@@ -294,23 +282,6 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
           >
             <LinkIcon className="w-4 h-4" />
             <span>วางลิงก์ YouTube</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`ml-auto flex items-center gap-1.5 py-2.5 px-3 border-b-2 transition text-xs sm:text-sm ${
-              activeTab === 'settings'
-                ? 'border-slate-700 text-slate-800 bg-white rounded-t-lg shadow-sm'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>การเชื่อมต่อ Server</span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                serverStatus.ok ? 'bg-emerald-500' : 'bg-amber-500'
-              }`}
-            />
           </button>
         </div>
 
@@ -342,7 +313,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                     {downloadProgressText}
                   </p>
                   <p className="text-amber-700 text-xs">
-                    กำลังดึงเสียงและแปลงเป็น MP3 192kbps เพื่อให้เปิดบนลำโพงได้ทันที...
+                    กำลังดึงเสียงและจัดเตรียมไฟล์เพลง กรุณารอสักครู่...
                   </p>
                 </div>
               </div>
@@ -355,15 +326,15 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
             </div>
           )}
 
-          {/* General Download Error */}
+          {/* General Download Error (Clean, Friendly) */}
           {downloadError && (
             <div className="bg-rose-50 border border-rose-300 text-rose-800 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-sm sm:text-base">เกิดข้อผิดพลาดในการดาวน์โหลด</p>
-                <p className="text-xs sm:text-sm text-rose-700">{downloadError}</p>
+                <p className="font-bold text-sm sm:text-base">ไม่สามารถดาวน์โหลดเพลงนี้ได้</p>
+                <p className="text-xs sm:text-sm text-rose-700 mt-0.5">{downloadError}</p>
                 <p className="text-xs text-rose-600 mt-1">
-                  💡 หากพบปัญหา กรุณาตรวจสอบสถานะเซิร์ฟเวอร์ในแท็บ "การเชื่อมต่อ Server"
+                  💡 คำแนะนำ: หากเพลงติดลิขสิทธิ์หรือไม่สามารถโหลดได้ กรุณาลองเลือกเวอร์ชันอื่นหรือพิมพ์ค้นหาใหม่
                 </p>
               </div>
             </div>
@@ -439,59 +410,96 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
               {/* Search Results List */}
               {searchResults.length > 0 && (
                 <div className="space-y-2.5">
-                  <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                    ผลลัพธ์การค้นหา ({searchResults.length} เพลง)
-                  </p>
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span className="uppercase tracking-wider">ผลลัพธ์การค้นหา ({searchResults.length} เพลง)</span>
+                    <span className="text-slate-400">รองรับเพลงความยาวไม่เกิน 20 นาที</span>
+                  </div>
                   <div className="grid grid-cols-1 gap-2.5">
-                    {searchResults.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 p-2.5 sm:p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition"
-                      >
-                        {/* Thumbnail */}
-                        <div className="relative w-20 sm:w-24 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                          <img
-                            src={item.thumbnail}
-                            alt={item.title}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                          <span className="absolute bottom-1 right-1 bg-black/80 text-white font-mono text-[10px] px-1 rounded">
-                            {item.duration_str}
-                          </span>
-                        </div>
-
-                        {/* Title and info */}
-                        <div className="min-w-0 flex-1">
-                          <h4
-                            className="font-bold text-slate-800 text-sm sm:text-base line-clamp-1"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </h4>
-                          <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5 truncate">
-                            <User className="w-3 h-3 inline" />
-                            <span>{item.channel || 'YouTube'}</span>
-                          </p>
-                        </div>
-
-                        {/* Download button */}
-                        <button
-                          onClick={() => handleDownloadSingle(item.url, item.id, item.title)}
-                          disabled={downloadingId !== null}
-                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs sm:text-sm py-2 px-3 sm:px-4 rounded-xl transition flex-shrink-0 shadow-sm"
+                    {searchResults.map((item) => {
+                      const isBlocked = item.is_live || item.is_too_long;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border transition ${
+                            isBlocked ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white hover:bg-slate-50 border-slate-200'
+                          }`}
                         >
-                          {downloadingId === item.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                          <span>
-                            {downloadingId === item.id ? 'กำลังดึง...' : 'ดึงเพลงนี้'}
-                          </span>
-                        </button>
-                      </div>
-                    ))}
+                          {/* Thumbnail */}
+                          <div className="relative w-20 sm:w-24 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                            <img
+                              src={item.thumbnail}
+                              alt={item.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            <span className="absolute bottom-1 right-1 bg-black/80 text-white font-mono text-[10px] px-1 rounded">
+                              {item.duration_str}
+                            </span>
+                          </div>
+
+                          {/* Title and info */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              {item.is_live && (
+                                <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
+                                  <Radio className="w-3 h-3 animate-pulse" />
+                                  <span>ไลฟ์สด</span>
+                                </span>
+                              )}
+                              {item.is_too_long && (
+                                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
+                                  <ClockAlert className="w-3 h-3" />
+                                  <span>เกิน 20 นาที</span>
+                                </span>
+                              )}
+                              <h4
+                                className="font-bold text-slate-800 text-sm sm:text-base line-clamp-1"
+                                title={item.title}
+                              >
+                                {item.title}
+                              </h4>
+                            </div>
+                            <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5 truncate">
+                              <User className="w-3 h-3 inline flex-shrink-0" />
+                              <span>{item.channel || 'YouTube'}</span>
+                            </p>
+                          </div>
+
+                          {/* Download button */}
+                          <button
+                            onClick={() => handleDownloadSingle(item.url, item.id, item.title)}
+                            disabled={downloadingId !== null || isBlocked}
+                            className={`flex items-center gap-1.5 font-bold text-xs sm:text-sm py-2 px-3 sm:px-4 rounded-xl transition flex-shrink-0 shadow-sm ${
+                              isBlocked
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white'
+                            }`}
+                            title={
+                              item.is_live
+                                ? 'ไม่รองรับวิดีโอถ่ายทอดสด'
+                                : item.is_too_long
+                                ? 'วิดีโอยาวเกิน 20 นาที รองรับเฉพาะเพลงความยาวปกติ'
+                                : 'กดดาวน์โหลดเพลงนี้'
+                            }
+                          >
+                            {downloadingId === item.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                            <span>
+                              {downloadingId === item.id
+                                ? 'กำลังดึง...'
+                                : item.is_live
+                                ? 'ไม่รองรับไลฟ์'
+                                : item.is_too_long
+                                ? 'เกิน 20 นาที'
+                                : 'ดึงเพลงนี้'}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -539,9 +547,21 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                       className="w-24 h-16 rounded-xl object-cover flex-shrink-0 bg-slate-200"
                     />
                     <div className="min-w-0 flex-1">
-                      <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded">
-                        เพลงเดี่ยว
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded">
+                          เพลงเดี่ยว
+                        </span>
+                        {urlInfo.is_live && (
+                          <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded">
+                            🔴 ไลฟ์สด
+                          </span>
+                        )}
+                        {urlInfo.is_too_long && (
+                          <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">
+                            ⚠️ ยาวเกิน 20 นาที
+                          </span>
+                        )}
+                      </div>
                       <h4 className="font-bold text-slate-800 text-base line-clamp-1 mt-1">
                         {urlInfo.title}
                       </h4>
@@ -551,20 +571,30 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      handleDownloadSingle(urlInfo.url || urlInput, urlInfo.id || 'single', urlInfo.title)
-                    }
-                    disabled={downloadingId !== null}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition shadow-md"
-                  >
-                    {downloadingId === urlInfo.id ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Download className="w-5 h-5" />
-                    )}
-                    <span>ดาวน์โหลดเพลงนี้ (MP3 192k)</span>
-                  </button>
+                  {urlInfo.is_live ? (
+                    <span className="text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+                      ไม่รองรับการดาวน์โหลดวิดีโอถ่ายทอดสด
+                    </span>
+                  ) : urlInfo.is_too_long ? (
+                    <span className="text-amber-800 text-xs font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                      วิดีโอยาวเกิน 20 นาที (รองรับเฉพาะเพลงสั้น)
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        handleDownloadSingle(urlInfo.url || urlInput, urlInfo.id || 'single', urlInfo.title)
+                      }
+                      disabled={downloadingId !== null}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition shadow-md flex-shrink-0"
+                    >
+                      {downloadingId === urlInfo.id ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Download className="w-5 h-5" />
+                      )}
+                      <span>ดาวน์โหลดเพลงนี้</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -587,9 +617,7 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                         onClick={toggleSelectAllPlaylist}
                         className="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition"
                       >
-                        {selectedPlaylistIds.length === urlInfo.items.length
-                          ? 'ยกเลิกทั้งหมด'
-                          : 'เลือกทั้งหมด'}
+                        {selectedPlaylistIds.length > 0 ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
                       </button>
                       <button
                         onClick={handleDownloadPlaylistSelected}
@@ -604,19 +632,24 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
 
                   <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
                     {urlInfo.items.map((item) => {
+                      const isBlocked = item.is_live || item.is_too_long;
                       const isChecked = selectedPlaylistIds.includes(item.id);
                       return (
                         <div
                           key={item.id}
-                          onClick={() => togglePlaylistItem(item.id)}
-                          className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition ${
-                            isChecked
-                              ? 'bg-emerald-50/70 border-emerald-300'
-                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                          onClick={() => togglePlaylistItem(item.id, isBlocked)}
+                          className={`flex items-center gap-3 p-2.5 rounded-xl border transition ${
+                            isBlocked
+                              ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
+                              : isChecked
+                              ? 'bg-emerald-50/70 border-emerald-300 cursor-pointer'
+                              : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer'
                           }`}
                         >
                           <div className="text-emerald-700 flex-shrink-0">
-                            {isChecked ? (
+                            {isBlocked ? (
+                              <Square className="w-5 h-5 text-slate-300" />
+                            ) : isChecked ? (
                               <CheckSquare className="w-5 h-5 fill-emerald-100" />
                             ) : (
                               <Square className="w-5 h-5 text-slate-300" />
@@ -632,9 +665,16 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
                               {item.title}
                             </p>
                           </div>
-                          <span className="text-xs font-mono text-slate-400">
-                            {item.duration_str}
-                          </span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {item.is_too_long && (
+                              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                                เกิน 20 นาที
+                              </span>
+                            )}
+                            <span className="text-xs font-mono text-slate-400">
+                              {item.duration_str}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
@@ -643,120 +683,12 @@ export const YouTubeDownloaderModal: React.FC<YouTubeDownloaderModalProps> = ({
               )}
             </div>
           )}
-
-          {/* TAB 3: SETTINGS */}
-          {activeTab === 'settings' && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-                <h4 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-slate-600" />
-                  <span>การตั้งค่าเชื่อมต่อ Hugging Face Spaces Backend</span>
-                </h4>
-                <p className="text-slate-600 text-sm">
-                  ระบบแปลงเสียงและดาวน์โหลดต้องเชื่อมต่อกับ Microservice (FastAPI + yt-dlp) ซึ่งรันอยู่บน Hugging Face Spaces ฟรี 100%
-                </p>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Backend Service URL:
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={customBackendUrl}
-                      onChange={(e) => setCustomBackendUrl(e.target.value)}
-                      placeholder="https://your-space-name.hf.space"
-                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-500"
-                    />
-                    <button
-                      onClick={handleSaveSettings}
-                      className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 py-2 rounded-lg text-sm transition"
-                    >
-                      บันทึก
-                    </button>
-                    <button
-                      onClick={handleResetSettings}
-                      className="text-slate-500 hover:text-slate-800 text-xs px-2 py-2"
-                      title="คืนค่าเริ่มต้น"
-                    >
-                      คืนค่า
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Box */}
-                <div
-                  className={`p-3 rounded-lg border flex items-center justify-between text-sm ${
-                    serverStatus.ok
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-rose-50 border-rose-200 text-rose-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    {serverStatus.ok ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
-                    )}
-                    <span className="font-medium">
-                      {isTestingServer
-                        ? 'กำลังตรวจสอบการเชื่อมต่อ...'
-                        : serverStatus.message || 'ยังไม่ได้ทดสอบ'}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => checkServerHealth(customBackendUrl)}
-                    disabled={isTestingServer}
-                    className="flex items-center gap-1 text-xs font-bold underline px-2 py-1"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingServer ? 'animate-spin' : ''}`} />
-                    <span>ทดสอบใหม่</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Self-hosting Guide Box */}
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-emerald-950 text-sm space-y-3">
-                <p className="font-bold flex items-center gap-1.5 text-emerald-900 text-base">
-                  <ExternalLink className="w-4 h-4 text-emerald-700" />
-                  <span>ตัวเลือกการเปิดใช้ Backend ฟรี 100%:</span>
-                </p>
-
-                <div className="space-y-2 text-xs sm:text-sm">
-                  <div className="bg-white/80 p-3 rounded-lg border border-emerald-200">
-                    <p className="font-bold text-emerald-900 mb-1">
-                      1. โฮสต์บน Render.com (ฟรี 100% ไม่ต้องใช้บัตรเครดิต):
-                    </p>
-                    <ol className="list-decimal list-inside space-y-0.5 text-slate-700">
-                      <li>สมัครที่ <strong>render.com</strong> และเชื่อมต่อกับ GitHub</li>
-                      <li>กด <strong>New +</strong> แล้วเลือก <strong>Web Service</strong></li>
-                      <li>เลือก Repository นี้ ตั้งค่า <strong>Root Directory: backend</strong> และ Runtime: <strong>Docker</strong></li>
-                      <li>เมื่อ Build เสร็จ จะได้ URL เช่น <code>https://xxx.onrender.com</code> นำมาวางที่ช่องด้านบน</li>
-                    </ol>
-                  </div>
-
-                  <div className="bg-white/80 p-3 rounded-lg border border-emerald-200">
-                    <p className="font-bold text-emerald-900 mb-1">
-                      2. รันในเครื่องของตนเอง (Localhost - ไวที่สุด โหลดเพลงได้ทันที):
-                    </p>
-                    <p className="text-slate-700 font-mono text-xs bg-slate-100 p-1.5 rounded">
-                      cd backend && pip install -r requirements.txt && python main.py
-                    </p>
-                    <p className="text-slate-600 mt-1">
-                      แล้วกรอก URL เป็น: <code>http://localhost:7860</code>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer Actions */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
           <span>
-            💡 เพลงที่ดาวน์โหลดจะถูกแปลงเป็น MP3 192kbps และส่งเข้าเพลย์ลิสต์ทันที
+            💡 เพลงที่ดาวน์โหลดจะถูกส่งเข้าเพลย์ลิสต์ทันที สามารถกดฟังตัวอย่างและตัดท่อนที่ไม่ต้องการได้
           </span>
           <button
             onClick={onClose}

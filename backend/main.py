@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import urllib.parse
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -23,6 +24,39 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "X-Audio-Title", "Content-Length"]
 )
+
+ALLOWED_YOUTUBE_HOSTS = {
+    'youtube.com',
+    'www.youtube.com',
+    'm.youtube.com',
+    'music.youtube.com',
+    'youtu.be',
+}
+
+def validate_youtube_url(url_str: str) -> str:
+    """
+    Validate that the URL belongs to legitimate YouTube domains to prevent SSRF
+    """
+    if not url_str or not url_str.strip():
+        raise HTTPException(status_code=400, detail="กรุณาระบุลิงก์ YouTube")
+    
+    url_str = url_str.strip()
+    try:
+        parsed = urlparse(url_str)
+        if parsed.scheme not in ('http', 'https'):
+            raise ValueError("URL ต้องขึ้นต้นด้วย http:// หรือ https://")
+        
+        hostname = (parsed.hostname or '').lower()
+        clean_host = hostname.removeprefix('www.')
+        
+        if hostname not in ALLOWED_YOUTUBE_HOSTS and clean_host not in ALLOWED_YOUTUBE_HOSTS and not hostname.endswith('.youtube.com'):
+            raise ValueError("ระบบรองรับเฉพาะลิงก์จาก YouTube เท่านั้น (youtube.com หรือ youtu.be)")
+            
+        return url_str
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 class DownloadRequest(BaseModel):
     url: str
@@ -49,22 +83,23 @@ def health_check():
 @app.get("/api/search")
 def search(q: str = Query(..., description="Search query string"), limit: int = Query(10, ge=1, le=20)):
     if not q.strip():
-        raise HTTPException(status_code=400, detail="Search query cannot be empty")
+        raise HTTPException(status_code=400, detail="คำค้นหาต้องไม่ว่างเปล่า")
     try:
         results = search_youtube(q.strip(), limit=limit)
         return {"query": q, "results": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="ระบบค้นหาขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง")
 
 @app.get("/api/info")
 def get_info(url: str = Query(..., description="YouTube video or playlist URL")):
-    if not url.strip():
-        raise HTTPException(status_code=400, detail="URL cannot be empty")
+    validated_url = validate_youtube_url(url)
     try:
-        info = get_url_info(url.strip())
+        info = get_url_info(validated_url)
         return info
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not retrieve video info: {str(e)}")
+        raise HTTPException(status_code=400, detail="ไม่สามารถดึงข้อมูลเพลงได้ กรุณาตรวจสอบว่าลิงก์ถูกต้องและเป็นสาธารณะ")
 
 @app.post("/api/download")
 def download_audio_post(req: DownloadRequest, background_tasks: BackgroundTasks):
@@ -75,14 +110,13 @@ def download_audio_get(url: str = Query(..., description="YouTube URL"), backgro
     return process_download(url, background_tasks)
 
 def process_download(url: str, background_tasks: BackgroundTasks):
-    if not url or not url.strip():
-        raise HTTPException(status_code=400, detail="URL cannot be empty")
+    validated_url = validate_youtube_url(url)
     
     # Create temporary working directory for this download
     temp_dir = tempfile.mkdtemp(prefix="yt_audio_")
     
     try:
-        result = download_audio_as_mp3(url.strip(), temp_dir)
+        result = download_audio_as_mp3(validated_url, temp_dir)
         file_path = result['file_path']
         title = result['title']
         filename = result['filename']
@@ -104,10 +138,20 @@ def process_download(url: str, background_tasks: BackgroundTasks):
                 "Access-Control-Expose-Headers": "Content-Disposition, X-Audio-Title, Content-Length"
             }
         )
+    except ValueError as ve:
+        cleanup_temp_dir(temp_dir)
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         # Cleanup immediately if error occurred before response
         cleanup_temp_dir(temp_dir)
-        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+        error_msg = str(e)
+        if "Private video" in error_msg or "Sign in" in error_msg:
+            detail = "วิดีโอนี้เป็นแบบส่วนตัวหรือติดจำกัดสิทธิ์ ไม่สามารถดาวน์โหลดได้"
+        elif "This video is not available" in error_msg:
+            detail = "ไม่พบวิดีโอนี้ในระบบ YouTube"
+        else:
+            detail = "ระบบไม่สามารถดาวน์โหลดเพลงนี้ได้ กรุณาลองเลือกเพลงอื่น"
+        raise HTTPException(status_code=500, detail=detail)
 
 if __name__ == "__main__":
     import uvicorn
